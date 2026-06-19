@@ -9,11 +9,6 @@ from app.platform.infrastructure.db.base import Base
 from app.platform.infrastructure.db.session import engine
 # Import models to ensure they are registered with Base
 import app.modules.payments.models
-import app.modules.users.models
-import app.modules.wallets.models
-import app.modules.transfers.models
-import app.modules.deposits.models
-import app.modules.withdrawals.models
 import app.financial.ledger.models
 import app.financial.idempotency.models
 import app.platform.distributed.raft.models

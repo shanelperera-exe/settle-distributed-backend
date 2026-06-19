@@ -4,7 +4,7 @@ kazoo
 sqlalchemy
 psycopg2-binary
 pydantic-settings
-pydantic[email]
+pydantic
 python-dotenv
 requests
 httpx
@@ -14,10 +14,6 @@ stripe
 pytest
 pytest-asyncio
 pytest-cov
-# Auth & Security
-passlib[bcrypt]
-python-jose[cryptography]
-python-multipart
 # Monitoring & Observability
 prometheus-client
 opentelemetry-api
@@ -25,4 +21,3 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-httpx
-jinja2

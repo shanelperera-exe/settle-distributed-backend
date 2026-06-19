@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from app.platform.infrastructure.db.session import get_db
 from app.platform.integrations.stripe_service import stripe_service
 from app.modules.payments.services import PaymentService
-from app.modules.deposits.services import DepositService
 from app.platform.core.config import settings
 from app.platform.observability.logging import logger
 from app.platform.observability.metrics import webhook_processing_duration_seconds
@@ -74,7 +73,6 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
         
     payment_service = PaymentService(db)
-    deposit_service = DepositService(db)
     
     # Stripe strongly recommends making webhooks asynchronous/fast, 
     # but since this requires distributed quorum, we process it inline here.
@@ -83,27 +81,15 @@ async def stripe_webhook(
     try:
         if event.type == 'payment_intent.succeeded':
             payment_intent = event.data.object
-            deposit_id = payment_intent.metadata.get("deposit_id")
-            if deposit_id:
-                await deposit_service.finalize_deposit(deposit_id)
-            else:
-                await payment_service.finalize_payment(payment_intent.id, success=True)
+            await payment_service.finalize_payment(payment_intent.id, success=True)
             
         elif event.type == 'payment_intent.payment_failed':
             payment_intent = event.data.object
-            deposit_id = payment_intent.metadata.get("deposit_id")
-            if deposit_id:
-                deposit_service.mark_failed(deposit_id)
-            else:
-                await payment_service.finalize_payment(payment_intent.id, success=False)
+            await payment_service.finalize_payment(payment_intent.id, success=False)
             
         elif event.type == 'payment_intent.canceled':
             payment_intent = event.data.object
-            deposit_id = payment_intent.metadata.get("deposit_id")
-            if deposit_id:
-                deposit_service.mark_failed(deposit_id)
-            else:
-                await payment_service.finalize_payment(payment_intent.id, success=False)
+            await payment_service.finalize_payment(payment_intent.id, success=False)
             
         else:
             logger.info(f"Unhandled Stripe event type: {event.type}")
