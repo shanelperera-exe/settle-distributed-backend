@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Grafana Datasource Auto-Provisioning for SETTLE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Grafana provisioning allows datasources to be pre-configured via YAML files.
+# When Grafana starts, it reads these files and creates the datasources
+# automatically — no manual UI setup required.
+#
+# This follows the "infrastructure as code" principle: the entire monitoring
+# stack is reproducible from configuration files alone.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+apiVersion: 1
+
+datasources:
+  # ── Prometheus (Metrics) ──────────────────────────────────────────────────
+  # Time-series database for all numeric metrics: counters, gauges, histograms.
+  # Queried via PromQL in Grafana dashboards.
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: "10s"
+      httpMethod: POST
+
+  # ── Loki (Logs) ───────────────────────────────────────────────────────────
+  # Centralized log aggregation. Queried via LogQL.
+  # Correlated with Prometheus metrics via shared labels (node_id, service).
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        # Auto-link trace_id in logs to Jaeger traces
+        - datasourceUid: jaeger
+          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+          name: TraceID
+          url: "$${__value.raw}"
+
+  # ── Jaeger (Traces) ──────────────────────────────────────────────────────
+  # Distributed tracing backend. Visualizes request flows across nodes.
+  # Linked from Loki logs via trace_id field.
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false

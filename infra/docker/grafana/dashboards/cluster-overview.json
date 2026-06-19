@@ -1,0 +1,152 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "style": "dark",
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Cluster Health & Consensus",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Nodes Online",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "count(up{job=\"settle-nodes\"} == 1)", "legendFormat": "Nodes Up" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 3 }, { "color": "green", "value": 5 }] } } },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "title": "Current Leader",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "raft_node_role{role=\"LEADER\"} == 1", "legendFormat": "{{ node_id }}" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] }, "mappings": [{ "type": "value", "options": { "1": { "text": "LEADER", "color": "green" } } }] } },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "name", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Current Raft Term",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "max(raft_current_term)", "legendFormat": "Term" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": null }] } } },
+      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "title": "Active Alerts",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)", "legendFormat": "Firing" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "State Transitions & Logs",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
+      "title": "Node Roles Over Time",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "raft_node_role{role=\"LEADER\"}", "legendFormat": "{{ node_id }} (LEADER)" },
+        { "expr": "raft_node_role{role=\"FOLLOWER\"}", "legendFormat": "{{ node_id }} (FOLLOWER)" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 6,
+      "title": "Leader Changes",
+      "type": "bargauge",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "increase(raft_leader_changes_total[1h])", "legendFormat": "{{ node_id }}" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "color": { "mode": "palette-classic" } } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 102,
+      "title": "Replication State",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 7,
+      "title": "Commit Index Progression",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "raft_commit_index", "legendFormat": "{{ node_id }}" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 8,
+      "title": "Replication Lag (entries)",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "raft_replication_lag", "legendFormat": "{{ node_id }} → {{ peer_id }}" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20, "gradientMode": "opacity" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] } } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["settle", "cluster", "overview"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "" },
+        "definition": "label_values(raft_current_term, node_id)",
+        "includeAll": true,
+        "multi": true,
+        "name": "node_id",
+        "query": "label_values(raft_current_term, node_id)",
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "SETTLE — Cluster Overview",
+  "uid": "settle-cluster-overview"
+}

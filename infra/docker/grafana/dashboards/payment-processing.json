@@ -1,0 +1,168 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "style": "dark",
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Real-Time Payment KPIs",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Payment TPS",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum(rate(payments_processed_total[1m]))", "legendFormat": "TPS" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "steps": [{ "color": "green", "value": null }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "title": "Payments Pending",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum(payments_pending)", "legendFormat": "Pending" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Total Processed",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum(payments_processed_total{status=\"success\"})", "legendFormat": "Success" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } } },
+      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "title": "Error Rate",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum(rate(payments_failed_total[5m]))", "legendFormat": "Failures/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "Performance & Throughput",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
+      "title": "Payment Processing Duration (P50 / P95 / P99)",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(payment_processing_duration_seconds_bucket[5m]))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, rate(payment_processing_duration_seconds_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(payment_processing_duration_seconds_bucket[5m]))", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 6,
+      "title": "Payments Processed Rate (by Status)",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "rate(payments_processed_total{status=\"success\"}[5m])", "legendFormat": "{{ node_id }} success" },
+        { "expr": "rate(payments_processed_total{status=\"failure\"}[5m])", "legendFormat": "{{ node_id }} failure" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "gradientMode": "opacity" } } }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 102,
+      "title": "External Services & Quorum",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "id": 7,
+      "title": "Stripe API Latency",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(stripe_api_latency_seconds_bucket[5m]))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, rate(stripe_api_latency_seconds_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(stripe_api_latency_seconds_bucket[5m]))", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "id": 8,
+      "title": "Webhook Processing Time",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(webhook_processing_duration_seconds_bucket[5m]))", "legendFormat": "{{ event_type }} P95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "id": 9,
+      "title": "Quorum Commit Latency",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(quorum_commit_latency_seconds_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(quorum_commit_latency_seconds_bucket[5m]))", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["settle", "payments", "business"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "" },
+        "definition": "label_values(payments_processed_total, node_id)",
+        "includeAll": true,
+        "multi": true,
+        "name": "node_id",
+        "query": "label_values(payments_processed_total, node_id)",
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "SETTLE — Payment Processing KPIs",
+  "uid": "settle-payment-processing"
+}

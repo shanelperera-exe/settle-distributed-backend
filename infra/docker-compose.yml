@@ -1,0 +1,356 @@
+x-node-common: &node-common
+  build:
+    context: ../backend
+    dockerfile: ../infra/docker/Dockerfile
+  env_file: ../backend/.env
+  depends_on:
+    zookeeper:
+      condition: service_healthy
+  restart: unless-stopped
+  networks:
+    - settle-net
+
+x-node-env: &node-env
+  ZOOKEEPER_HOST: zookeeper
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: settle-user
+  POSTGRES_PASSWORD: settle@1234
+  POSTGRES_DB: settle
+  # ── Monitoring & Observability ──────────────────────────────────────────
+  JAEGER_OTLP_ENDPOINT: "jaeger:4317"
+  PROMETHEUS_ENABLED: "true"
+  TRACING_ENABLED: "true"
+  TRACING_SAMPLE_RATE: "1.0"
+  LOKI_URL: "http://loki:3100"
+
+x-postgres-common: &postgres-common
+  image: postgres:15-alpine
+  environment:
+    POSTGRES_USER: settle-user
+    POSTGRES_PASSWORD: settle@1234
+    POSTGRES_DB: settle
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U settle-user -d settle"]
+    interval: 5s
+    timeout: 5s
+    retries: 5
+  networks:
+    - settle-net
+
+services:
+  zookeeper:
+    image: zookeeper:3.9
+    container_name: zookeeper
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: echo stat | nc localhost 2181
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - settle-net
+
+  postgres-1:
+    <<: *postgres-common
+    container_name: postgres-1
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres-data-1:/var/lib/postgresql/data
+
+  postgres-2:
+    <<: *postgres-common
+    container_name: postgres-2
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres-data-2:/var/lib/postgresql/data
+
+  postgres-3:
+    <<: *postgres-common
+    container_name: postgres-3
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres-data-3:/var/lib/postgresql/data
+
+  postgres-4:
+    <<: *postgres-common
+    container_name: postgres-4
+    ports:
+      - "5439:5432"
+    volumes:
+      - postgres-data-4:/var/lib/postgresql/data
+
+  postgres-5:
+    <<: *postgres-common
+    container_name: postgres-5
+    ports:
+      - "5440:5432"
+    volumes:
+      - postgres-data-5:/var/lib/postgresql/data
+
+  node-1:
+    <<: *node-common
+    container_name: settle-node-1
+    environment:
+      <<: *node-env
+      NODE_ID: node-1
+      POSTGRES_HOST: postgres-1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      postgres-1:
+        condition: service_healthy
+
+  node-2:
+    <<: *node-common
+    container_name: settle-node-2
+    environment:
+      <<: *node-env
+      NODE_ID: node-2
+      POSTGRES_HOST: postgres-2
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      postgres-2:
+        condition: service_healthy
+
+  node-3:
+    <<: *node-common
+    container_name: settle-node-3
+    environment:
+      <<: *node-env
+      NODE_ID: node-3
+      POSTGRES_HOST: postgres-3
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      postgres-3:
+        condition: service_healthy
+
+  node-4:
+    <<: *node-common
+    container_name: settle-node-4
+    environment:
+      <<: *node-env
+      NODE_ID: node-4
+      POSTGRES_HOST: postgres-4
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      postgres-4:
+        condition: service_healthy
+
+  node-5:
+    <<: *node-common
+    container_name: settle-node-5
+    environment:
+      <<: *node-env
+      NODE_ID: node-5
+      POSTGRES_HOST: postgres-5
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      postgres-5:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-lb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - node-1
+      - node-2
+      - node-3
+      - node-4
+      - node-5
+    networks:
+      - settle-net
+
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: stripe-cli
+    env_file: ../backend/.env
+    entrypoint: ["sh", "-c", "stripe listen --api-key $$STRIPE_SECRET_KEY --forward-to http://nginx:8000/api/v1/webhooks/stripe"]
+    depends_on:
+      - nginx
+    networks:
+      - settle-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MONITORING & OBSERVABILITY STACK
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  # ── Prometheus: Metrics Collection & Alert Evaluation ─────────────────────
+  # Pull-based time-series database. Scrapes /metrics endpoints on all services
+  # every 10-15 seconds and stores the data for PromQL querying.
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Alertmanager: Alert Routing & Deduplication ───────────────────────────
+  # Receives fired alerts from Prometheus and routes them to external
+  # systems like Slack, PagerDuty, or custom webhooks.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    volumes:
+      - ./docker/alertmanager/config.yml:/etc/alertmanager/config.yml:ro
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/etc/alertmanager/config.yml"
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Grafana: Dashboards & Visualization ───────────────────────────────────
+  # Web-based monitoring UI. Auto-provisions datasources (Prometheus, Loki,
+  # Jaeger) and dashboards from configuration files on startup.
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: grafana
+    env_file: ../backend/.env
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/cluster-overview.json
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Loki: Centralized Log Aggregation ─────────────────────────────────────
+  # Log storage system that indexes logs by labels (not full text) for
+  # efficient querying. All SETTLE node logs flow here via Promtail.
+  loki:
+    image: grafana/loki:3.5.0
+    container_name: loki
+    volumes:
+      - ./docker/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yml
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Promtail: Log Shipping Agent ──────────────────────────────────────────
+  # Tails Docker container stdout/stderr, parses structured JSON, attaches
+  # labels (node_id, severity), and ships logs to Loki.
+  promtail:
+    image: grafana/promtail:3.5.0
+    container_name: promtail
+    volumes:
+      - ./docker/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Jaeger: Distributed Tracing ───────────────────────────────────────────
+  # Collects and visualizes distributed traces. SETTLE nodes send spans
+  # via OTLP gRPC. The all-in-one image includes collector, query UI,
+  # and in-memory storage (suitable for development).
+  jaeger:
+    image: jaegertracing/all-in-one:1.68.0
+    container_name: jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "14268:14268"   # Collector HTTP (legacy)
+      - "4317:4317"     # OTLP gRPC receiver
+      - "4318:4318"     # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      # Memory bounding to prevent OOM kills in production:
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=100000
+      # Enable trace dependencies graph UI:
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+      - PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── cAdvisor: Container Metrics ───────────────────────────────────────────
+  # Exports per-container resource usage (CPU, memory, network, disk) as
+  # Prometheus metrics. Scraped by Prometheus for container health dashboards.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.51.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+  # ── Node Exporter: Host Metrics ───────────────────────────────────────────
+  # Exports host-level hardware metrics (CPU, RAM, disk, network) as
+  # Prometheus metrics. Essential for capacity planning and infrastructure alerts.
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - /:/host:ro
+    restart: unless-stopped
+    networks:
+      - settle-net
+
+networks:
+  settle-net:
+    driver: bridge
+
+volumes:
+  postgres-data-1:
+  postgres-data-2:
+  postgres-data-3:
+  postgres-data-4:
+  postgres-data-5:
+  # ── Monitoring Volumes ──────────────────────────────────────────────
+  prometheus-data:
+  grafana-data:
+  loki-data:

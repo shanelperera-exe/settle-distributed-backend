@@ -1,0 +1,244 @@
+import asyncio
+import uuid
+import socket
+import httpx
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from typing import Dict, Any, List
+
+from app.platform.infrastructure.db.session import get_db
+from app.contracts.payment import PaymentCreate, PaymentResponse
+from app.modules.payments.models import Payment, PaymentStatus
+from app.financial.ledger.models import LedgerEntry, LedgerStatus
+from app.modules.payments.repositories import PaymentRepository
+from app.financial.ledger.repositories import LedgerRepository
+from app.financial.idempotency.manager import IdempotencyManager, IdempotencyException
+from app.platform.core.config import settings
+from app.platform.observability.logging import logger
+
+from app.platform.integrations.stripe_service import stripe_service
+from app.modules.payments.services import PaymentService
+
+router = APIRouter()
+
+
+def _resolve_leader_ip(leader_id: str) -> str:
+    """Resolve leader hostname to IPv4 to avoid Docker DNS AAAA hang."""
+    from app.platform.distributed.raft.node import raft_node
+    cached = raft_node.peer_ips.get(leader_id)
+    if cached:
+        return cached
+    try:
+        return socket.gethostbyname(leader_id)
+    except Exception:
+        return leader_id
+
+async def _enforce_linearizable_read(request: Request):
+    """
+    Ensures strict linearizability.
+    1. Proxies to Leader if not Leader.
+    2. Awaits ReadIndex protocol if Leader.
+    Returns JSONResponse if proxied, None if local read is safe.
+    """
+    from app.platform.distributed.failover_service import FailoverService
+    from app.platform.distributed.raft.node import raft_node
+
+    if not FailoverService.is_leader():
+        if request.headers.get("x-raft-proxied"):
+            raise HTTPException(status_code=503, detail="Cluster is electing a new leader. Please retry.")
+
+        leader_id = None
+        for _ in range(50):
+            leader_id = FailoverService.get_leader_id()
+            if leader_id:
+                break
+            await asyncio.sleep(0.1)
+
+        if not leader_id:
+            raise HTTPException(status_code=503, detail="Cluster is electing a new leader. Please retry.")
+
+        leader_ip = _resolve_leader_ip(leader_id)
+        path = request.url.path
+        query = request.url.query
+        target_url = f"http://{leader_ip}:{settings.INTERNAL_PORT}{path}"
+        if query:
+            target_url += f"?{query}"
+
+        logger.info(f"Proxying GET request to leader {leader_id} ({leader_ip})")
+
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        headers["x-raft-proxied"] = "true"
+        headers["host"] = f"{leader_ip}:{settings.INTERNAL_PORT}"
+
+        last_error = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(target_url, headers=headers)
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            except Exception as e:
+                last_error = e
+                await asyncio.sleep(0.3 * (attempt + 1))
+
+        logger.error(f"All proxy attempts failed: {last_error}")
+        raise HTTPException(status_code=502, detail="Bad Gateway — leader unreachable.")
+    else:
+        # We are the leader, execute ReadIndex protocol
+        is_linearizable = await raft_node.wait_for_linearizable_read()
+        if not is_linearizable:
+            raise HTTPException(status_code=503, detail="Lost leadership during ReadIndex protocol. Please retry.")
+        return None
+
+@router.post("/", response_model=Dict[str, Any])
+async def process_payment(
+    request: Request,
+    payment_in: PaymentCreate,
+    idempotency_key: str = Header(..., description="Unique key for deduplication"),
+    db: Session = Depends(get_db),
+):
+    from app.platform.distributed.failover_service import FailoverService
+
+    # --- Step 0: Leadership check + transparent proxy with retry ---
+    if not FailoverService.is_leader():
+        # If this request has already been proxied once, do not proxy again.
+        if request.headers.get("x-raft-proxied"):
+            raise HTTPException(status_code=503, detail="Cluster is electing a new leader. Please retry.")
+
+        # Wait up to 5 seconds for a stable leader before giving up.
+        leader_id = None
+        for _ in range(50):
+            leader_id = FailoverService.get_leader_id()
+            if leader_id:
+                break
+            await asyncio.sleep(0.1)
+
+        if not leader_id:
+            raise HTTPException(status_code=503, detail="Cluster is electing a new leader. Please retry.")
+
+        leader_ip = _resolve_leader_ip(leader_id)
+        target_url = f"http://{leader_ip}:{settings.INTERNAL_PORT}/api/v1/payments/"
+        logger.info(f"Proxying payment to leader {leader_id} ({leader_ip})")
+
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        headers["x-raft-proxied"] = "true"
+        headers["host"] = f"{leader_ip}:{settings.INTERNAL_PORT}"
+
+        # Retry the proxy up to 3 times in case the leader steps down mid-flight.
+        last_error = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        target_url,
+                        headers=headers,
+                        json=payment_in.model_dump(mode="json"),
+                    )
+                return JSONResponse(status_code=resp.status_code, content=resp.json())
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Proxy attempt {attempt + 1} failed: {e}. Retrying...")
+                await asyncio.sleep(0.3 * (attempt + 1))
+
+        logger.error(f"All proxy attempts failed: {last_error}")
+        raise HTTPException(status_code=502, detail="Bad Gateway — leader unreachable after retries.")
+
+    # --- Step 1: Idempotency / dedup check ---
+    dedup_manager = IdempotencyManager(db)
+    try:
+        is_dup, cached_body, cached_code = dedup_manager.check_or_create_lock(
+            idempotency_key, payment_in.model_dump(mode="json")
+        )
+        if is_dup:
+            return JSONResponse(status_code=cached_code, content=cached_body)
+    except IdempotencyException as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+    try:
+        # --- Step 2: Create Stripe PaymentIntent (offloaded so event loop stays free) ---
+        intent = await asyncio.to_thread(
+            stripe_service.create_payment_intent,
+            amount=payment_in.amount,
+            currency=payment_in.currency,
+            idempotency_key=idempotency_key,
+        )
+
+        # --- Step 3: Propose PAYMENT_INIT to the Raft log ---
+        payment_service = PaymentService(db)
+        payment = await payment_service.initiate_payment(
+            payment_in=payment_in,
+            idempotency_key=idempotency_key,
+            stripe_intent_id=intent.id,
+        )
+
+        response_data = {
+            "payment_id": payment.id,
+            "transaction_id": payment.transaction_id,
+            "stripe_payment_intent_id": intent.id,
+            "client_secret": intent.client_secret,
+            "status": payment.status.value,
+        }
+
+        dedup_manager.finalize(idempotency_key, payment.id, 200, response_data)
+        return JSONResponse(status_code=200, content=response_data)
+
+    except Exception as e:
+        logger.error(f"Error processing payment: {e}", exc_info=True)
+        dedup_manager.release_lock_on_failure(idempotency_key)
+        msg = str(e).lower()
+        if "quorum" in msg or "leadership" in msg or "not the leader" in msg:
+            raise HTTPException(status_code=503, detail="Leader changed mid-transaction. Please retry.")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/", response_model=List[Dict[str, Any]])
+async def list_payments(request: Request, db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+    """
+    List all payments.
+    Enforces Strict Linearizability via Raft ReadIndex Protocol.
+    """
+    proxy_resp = await _enforce_linearizable_read(request)
+    if proxy_resp:
+        return proxy_resp
+
+    payments = db.query(Payment).order_by(Payment.created_at.desc()).offset(skip).limit(limit).all()
+    
+    return [
+        {
+            "payment_id": p.id,
+            "transaction_id": p.transaction_id,
+            "amount": float(p.amount) if p.amount else 0.0,
+            "currency": p.currency,
+            "sender_id": p.sender_id,
+            "receiver_id": p.receiver_id,
+            "status": p.status.value if hasattr(p.status, "value") else str(p.status)
+        } for p in payments
+    ]
+
+@router.get("/{payment_id}", response_model=Dict[str, Any])
+async def get_payment(payment_id: str, request: Request, db: Session = Depends(get_db)):
+    """
+    Get a specific payment by ID.
+    Enforces Strict Linearizability via Raft ReadIndex Protocol.
+    """
+    proxy_resp = await _enforce_linearizable_read(request)
+    if proxy_resp:
+        return proxy_resp
+
+    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+        
+    return {
+        "payment_id": payment.id,
+        "transaction_id": payment.transaction_id,
+        "amount": float(payment.amount) if payment.amount else 0.0,
+        "currency": payment.currency,
+        "sender_id": payment.sender_id,
+        "receiver_id": payment.receiver_id,
+        "status": payment.status.value if hasattr(payment.status, "value") else str(payment.status)
+    }

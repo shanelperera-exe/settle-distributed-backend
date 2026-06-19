@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to Settle{% endblock %}
+
+{% block content %}
+    <h3>Hello {% if name %}{{ name }}{% else %}there{% endif %},</h3>
+    <p>Welcome to Settle! We are thrilled to have you on board.</p>
+    <p>Please confirm your email address by entering the following 6-digit code in the app:</p>
+    <div style="text-align: center; margin: 30px 0;">
+        <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #121212; background-color: #f0f0f0; padding: 12px 24px; border-radius: 8px;">{{ verification_code }}</span>
+    </div>
+    <p>This code will expire in a short period of time. Please do not share it with anyone.</p>
+    <p>Best regards,<br>The Settle Team</p>
+{% endblock %}

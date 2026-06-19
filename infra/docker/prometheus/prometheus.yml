@@ -1,0 +1,83 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prometheus Configuration for the SETTLE Distributed Payment System
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Prometheus is a pull-based monitoring system. Instead of services pushing
+# metrics to a central server, Prometheus periodically "scrapes" HTTP endpoints
+# (typically /metrics) on each target service.
+#
+# Key concepts:
+#   scrape_interval: How often Prometheus pulls metrics from targets (15s default)
+#   evaluation_interval: How often Prometheus evaluates alert rules
+#   scrape_configs: Define which services to monitor and how to reach them
+# ═══════════════════════════════════════════════════════════════════════════════
+
+global:
+  # How frequently to scrape targets. 15s is the industry standard —
+  # short enough for real-time dashboards, long enough to avoid overload.
+  scrape_interval: 15s
+
+  # How frequently to evaluate alerting and recording rules.
+  evaluation_interval: 15s
+
+  # Attach these labels to all time series and alerts from this Prometheus instance.
+  external_labels:
+    cluster: "settle"
+    environment: "development"
+
+# ── Alert Rules ───────────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+# ── Alertmanager Configuration ────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+# ── Scrape Targets ────────────────────────────────────────────────────────────
+# Each job_name defines a group of targets to scrape.
+scrape_configs:
+
+  # ── SETTLE Backend Nodes ──────────────────────────────────────────────────
+  # Scrapes the /api/v1/metrics endpoint on each of the 5 SETTLE nodes.
+  # These expose application-level metrics: payments, Raft, ZooKeeper, etc.
+  - job_name: "settle-nodes"
+    metrics_path: /api/v1/metrics
+    scrape_interval: 10s  # Slightly faster for real-time payment monitoring
+    static_configs:
+      - targets:
+          - "settle-node-1:8000"
+          - "settle-node-2:8000"
+          - "settle-node-3:8000"
+          - "settle-node-4:8000"
+          - "settle-node-5:8000"
+        labels:
+          service: "settle-backend"
+
+  # ── Node Exporter (Host Metrics) ──────────────────────────────────────────
+  # Provides hardware/OS metrics: CPU, memory, disk, network.
+  # Essential for capacity planning and detecting resource exhaustion.
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: "infrastructure"
+
+  # ── cAdvisor (Container Metrics) ──────────────────────────────────────────
+  # Provides per-container resource usage: CPU, memory, network I/O.
+  # Critical for detecting container resource limits and OOM kills.
+  - job_name: "cadvisor"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          service: "infrastructure"
+
+  # ── Prometheus Self-Monitoring ────────────────────────────────────────────
+  # Prometheus monitors itself for meta-observability: scrape duration,
+  # rule evaluation latency, TSDB health.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

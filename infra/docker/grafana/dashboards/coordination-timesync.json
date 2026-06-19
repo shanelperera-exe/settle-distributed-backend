@@ -1,0 +1,65 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "id": 1, "title": "ZooKeeper Connected Nodes", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(zookeeper_connected)", "legendFormat": "Connected" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 5 }] } } },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "id": 2, "title": "Registered Node Count", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "max(zookeeper_node_count)", "legendFormat": "Nodes" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": null }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 3, "title": "Clock Skew (max)", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "max(clock_skew_milliseconds)", "legendFormat": "Skew" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1000 }, { "color": "red", "value": 5000 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 4, "title": "ZooKeeper Connection State", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "zookeeper_connected", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 }, "min": 0, "max": 1 } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 5, "title": "Clock Skew per Node", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "clock_skew_milliseconds", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 6, "title": "NTP Sync Offset", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "ntp_sync_offset_seconds", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 7, "title": "Reorder Buffer Depth", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "reorder_buffer_size", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 } } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["settle", "zookeeper", "time-sync"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "SETTLE — Coordination & Time Sync",
+  "uid": "settle-coordination"
+}

@@ -1,0 +1,57 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Alertmanager Configuration for SETTLE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Alertmanager receives alerts from Prometheus, groups them, deduplicates them,
+# and routes them to the correct receiver (e.g., Slack, PagerDuty, Email).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+global:
+  resolve_timeout: 5m
+  # Used if Slack webhook was real:
+  # slack_api_url: '<SLACK_WEBHOOK_URL_HERE>'
+
+route:
+  # The root route. All alerts enter here.
+  receiver: 'default-webhook'
+  
+  # Group alerts by cluster and alertname. This prevents alert storms.
+  # If 5 nodes go down, you get 1 alert with 5 nodes listed, not 5 emails.
+  group_by: ['alertname', 'cluster']
+  
+  # How long to wait before sending the first notification (allows grouping)
+  group_wait: 30s
+  
+  # How long to wait before sending a notification about *new* alerts in the same group
+  group_interval: 5m
+  
+  # How long to wait before re-sending a notification for an alert that is still firing
+  repeat_interval: 4h
+
+  # Child routes for specific teams/severities
+  routes:
+    # Critical alerts go to PagerDuty (mocked here as a webhook)
+    - matchers:
+        - severity="critical"
+      receiver: 'pagerduty-mock'
+      continue: false
+      
+    # Payments team alerts go to a specific channel
+    - matchers:
+        - team="payments"
+      receiver: 'payments-slack-mock'
+
+receivers:
+  # Fallback/Default receiver
+  - name: 'default-webhook'
+    webhook_configs:
+      # We use a mock webhook endpoint for local development testing
+      - url: 'http://localhost:8080/alerts'
+
+  - name: 'pagerduty-mock'
+    webhook_configs:
+      - url: 'http://localhost:8080/pagerduty'
+
+  - name: 'payments-slack-mock'
+    webhook_configs:
+      - url: 'http://localhost:8080/slack/payments'

@@ -1,0 +1,82 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Promtail Configuration for the SETTLE Payment System
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Promtail is Loki's log shipping agent. It:
+#   1. Discovers Docker containers via the Docker daemon socket
+#   2. Tails their stdout/stderr log streams
+#   3. Parses structured JSON fields into Loki labels
+#   4. Ships logs to Loki for indexing and querying
+#
+# Pipeline Stages:
+#   docker → json parsing → label extraction → Loki push
+# ═══════════════════════════════════════════════════════════════════════════════
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  # Tracks which log positions have been read (survives restarts)
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ── Docker Container Log Discovery ────────────────────────────────────────
+  # Reads container logs directly from Docker's log files on the host.
+  # This is the standard approach for Docker Compose deployments.
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: settle-containers
+          __path__: /var/lib/docker/containers/*/*-json.log
+
+    pipeline_stages:
+      # ── Stage 1: Parse Docker's JSON log wrapper ──────────────────────────
+      # Docker wraps each log line in: {"log": "...", "stream": "...", "time": "..."}
+      - docker: {}
+
+      # ── Stage 2: Parse SETTLE's structured JSON from the log field ────────
+      # Our application emits JSON logs like:
+      #   {"timestamp":"...","severity":"INFO","message":"...","node_id":"node-1",...}
+      - json:
+          expressions:
+            severity: severity
+            node_id: node_id
+            service: service
+            logger_name: logger
+            trace_id: trace_id
+            correlation_id: correlation_id
+            event: event
+            request_id: request_id
+
+      # ── Stage 3: PII Security Redaction ───────────────────────────────────
+      # Masks credit card numbers, secrets, and PII before shipping to Loki.
+      - replace:
+          expression: '(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})'
+          replace: '****-****-****-REDACTED'
+      - replace:
+          expression: '([a-zA-Z0-9_-]+_secret_[a-zA-Z0-9]+)'
+          replace: 'sk_***_REDACTED'
+
+      # ── Stage 4: Extract labels for Loki indexing ─────────────────────────
+      # Only promote low-cardinality fields to labels.
+      # High-cardinality fields (trace_id, request_id) stay as structured
+      # metadata for full-text search, not label indexing.
+      - labels:
+          severity:
+          node_id:
+          service:
+          event:
+
+      # ── Stage 4: Set the timestamp from the application's timestamp ───────
+      - timestamp:
+          source: timestamp
+          format: "2006-01-02T15:04:05.000Z"
+          fallback_formats:
+            - "2006-01-02T15:04:05.999999999Z"
+          action_on_failure: fudge

@@ -1,0 +1,75 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Grafana Loki Configuration for the SETTLE Payment System
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Loki is a horizontally-scalable, highly-available log aggregation system
+# inspired by Prometheus. Unlike traditional log systems (ELK), Loki does NOT
+# index the full log text — it only indexes labels (like node_id, severity).
+# This makes it extremely efficient for Kubernetes/Docker log aggregation.
+#
+# Architecture:
+#   Promtail (log shipper) → Loki (storage + query) → Grafana (visualization)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Single-tenant mode (no multi-tenancy overhead for dev)
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Allow structured metadata to be stored alongside logs
+  allow_structured_metadata: true
+  # Reject logs older than 168h (7 days) — prevents backfill attacks
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # Maximum log line size (1MB should handle any structured JSON log)
+  max_line_size: 1048576
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+
+# How long to retain log data
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
+
+# Chunk storage configuration
+chunk_store_config:
+  chunk_cache_config:
+    embedded_cache:
+      enabled: true
+      max_size_mb: 100
+
+# Querier optimization
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100

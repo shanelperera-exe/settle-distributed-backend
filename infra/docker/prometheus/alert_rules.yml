@@ -1,0 +1,148 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Prometheus Alert Rules for the SETTLE Distributed Payment System
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Alert rules are evaluated by Prometheus at the configured evaluation_interval.
+# When an alert condition is true for the specified "for" duration, the alert fires.
+#
+# Severity levels:
+#   critical – Immediate human intervention required. System is degraded.
+#   warning  – Attention needed soon. Performance is degrading.
+#   info     – Notable event for awareness. No immediate action needed.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+groups:
+  # ── Cluster Health Alerts ─────────────────────────────────────────────────
+  - name: settle_cluster_health
+    rules:
+      # Alert: No leader exists in the cluster
+      # A cluster without a leader cannot process writes (payments).
+      - alert: LeaderNodeDown
+        expr: sum(raft_node_role{role="LEADER"}) == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "No Raft leader detected in the SETTLE cluster"
+          description: "No node reports role=LEADER. The cluster cannot process payments until a new leader is elected."
+          runbook_url: "https://docs.settle.internal/runbooks/leader-failure"
+
+      # Alert: A backend node is unreachable
+      - alert: NodeOffline
+        expr: up{job="settle-nodes"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "SETTLE node {{ $labels.instance }} is offline"
+          description: "Prometheus cannot reach {{ $labels.instance }}. Node may have crashed or network partition occurred."
+
+      # Alert: Cluster has lost quorum (fewer than 3/5 nodes up)
+      - alert: QuorumFailure
+        expr: count(up{job="settle-nodes"} == 1) < 3
+        for: 15s
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "SETTLE cluster has lost quorum"
+          description: "Only {{ $value }} of 5 nodes are reachable. Quorum requires at least 3 nodes. Writes are blocked."
+
+  # ── Replication & Consensus Alerts ────────────────────────────────────────
+  - name: settle_replication
+    rules:
+      # Alert: Replication lag between leader and follower is high
+      - alert: HighReplicationLag
+        expr: raft_replication_lag > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "High replication lag on {{ $labels.node_id }} → {{ $labels.peer_id }}"
+          description: "Replication lag is {{ $value }} entries. Followers are falling behind the leader."
+
+      # Alert: Election timeout rate is abnormally high (indicates instability)
+      - alert: ExcessiveElectionTimeouts
+        expr: rate(raft_election_timeouts_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Excessive election timeouts on {{ $labels.node_id }}"
+          description: "Node {{ $labels.node_id }} is timing out elections frequently, indicating network instability or leader health issues."
+
+  # ── Payment Processing Alerts ─────────────────────────────────────────────
+  - name: settle_payments
+    rules:
+      # Alert: Spike in payment failures
+      - alert: PaymentFailureSpike
+        expr: rate(payments_failed_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: payments
+        annotations:
+          summary: "Payment failure rate spike detected"
+          description: "Payment failures are occurring at {{ $value | humanize }}/sec. Check Stripe connectivity and Raft quorum."
+
+      # Alert: Stripe API is responding slowly
+      - alert: StripeHighLatency
+        expr: histogram_quantile(0.99, rate(stripe_api_latency_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Stripe API P99 latency exceeds 5 seconds"
+          description: "Stripe API P99 latency is {{ $value | humanize }}s. This will impact payment processing throughput."
+
+  # ── Infrastructure Alerts ─────────────────────────────────────────────────
+  - name: settle_infrastructure
+    rules:
+      # Alert: ZooKeeper connection lost
+      - alert: ZooKeeperDisconnected
+        expr: zookeeper_connected == 0
+        for: 15s
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Node {{ $labels.node_id }} lost ZooKeeper connection"
+          description: "ZooKeeper connection lost. Cluster membership discovery and leader election coordination are impaired."
+
+      # Alert: Clock skew exceeds threshold
+      - alert: ClockSkewExceeded
+        expr: clock_skew_milliseconds > 5000
+        for: 1m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Clock skew on {{ $labels.node_id }} exceeds 5 seconds"
+          description: "NTP clock skew is {{ $value | humanize }}ms. This can cause log ordering issues and HLC drift."
+
+      # Alert: High CPU usage on host
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 90% for more than 5 minutes."
+
+      # Alert: Memory running low
+      - alert: MemoryExhaustion
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Memory exhaustion imminent"
+          description: "Less than 10% of memory available. OOM kills are likely."

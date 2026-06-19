@@ -1,0 +1,65 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "id": 1, "title": "Raft Term", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "max(raft_current_term)", "legendFormat": "Term" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "blue", "value": null }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "id": 2, "title": "Total Leader Changes", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(raft_leader_changes_total)", "legendFormat": "Changes" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 3, "title": "Election Timeouts", "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(raft_election_timeouts_total)", "legendFormat": "Timeouts" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 10 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value" }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 4, "title": "Heartbeat Latency by Peer (P95)", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "histogram_quantile(0.95, rate(raft_heartbeat_latency_seconds_bucket[5m]))", "legendFormat": "{{ node_id }} → {{ peer_id }}" }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 5, "title": "Raft Term Over Time", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "raft_current_term", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 6, "title": "Replication Queue Size", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "replication_queue_size", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 7, "title": "Election Timeout Rate", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "rate(raft_election_timeouts_total[5m])", "legendFormat": "{{ node_id }}" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 80 } } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["settle", "raft", "consensus"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "SETTLE — Raft Consensus",
+  "uid": "settle-raft-consensus"
+}

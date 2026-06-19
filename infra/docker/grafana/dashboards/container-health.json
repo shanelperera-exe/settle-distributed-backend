@@ -1,0 +1,58 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1, "title": "CPU Usage by Container", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "rate(container_cpu_usage_seconds_total{name=~\"settle-node.*|postgres.*|zookeeper|nginx-lb|stripe-cli\"}[5m]) * 100", "legendFormat": "{{ name }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2, "title": "Memory Usage by Container", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "container_memory_usage_bytes{name=~\"settle-node.*|postgres.*|zookeeper|nginx-lb\"}", "legendFormat": "{{ name }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3, "title": "Network RX (bytes/s)", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "rate(container_network_receive_bytes_total{name=~\"settle-node.*\"}[5m])", "legendFormat": "{{ name }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4, "title": "Network TX (bytes/s)", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "rate(container_network_transmit_bytes_total{name=~\"settle-node.*\"}[5m])", "legendFormat": "{{ name }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 5, "title": "Container Restarts", "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "increase(container_start_time_seconds{name=~\"settle-node.*|postgres.*|zookeeper\"}[1h])", "legendFormat": "{{ name }}" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 80 } } }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["settle", "containers", "docker"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "SETTLE — Container Health",
+  "uid": "settle-container-health"
+}

@@ -1,0 +1,119 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "style": "dark",
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Global System Traffic",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 1 },
+      "id": 1,
+      "title": "Total HTTP Requests",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(rate(http_requests_total[5m]))", "legendFormat": "RPS" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "thresholds": { "steps": [{ "color": "green", "value": null }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 1 },
+      "id": 2,
+      "title": "In-Flight Requests",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(http_requests_in_progress)", "legendFormat": "Active" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] } } },
+      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 1 },
+      "id": 3,
+      "title": "HTTP Error Rate (5xx)",
+      "type": "stat",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [{ "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))", "legendFormat": "5xx/s" }],
+      "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.1 }] } } },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value", "justifyMode": "auto" }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "Latency & Error Distribution",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 4,
+      "title": "Request Latency P50/P95/P99",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))", "legendFormat": "P99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 5,
+      "title": "Requests by Status Code",
+      "type": "bargauge",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum by(status) (rate(http_requests_total[5m]))", "legendFormat": "{{ status }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 102,
+      "title": "Node & Endpoint Breakdown",
+      "type": "row"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "title": "Requests by Endpoint",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum by(endpoint) (rate(http_requests_total[5m]))", "legendFormat": "{{ endpoint }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" } } }
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "title": "Requests per Node",
+      "type": "timeseries",
+      "transparent": true,
+      "datasource": { "type": "prometheus", "uid": "" },
+      "targets": [
+        { "expr": "sum by(node_id) (rate(http_requests_total[5m]))", "legendFormat": "{{ node_id }}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 25, "gradientMode": "opacity" } } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["settle", "http", "performance"],
+  "time": { "from": "now-30m", "to": "now" },
+  "title": "SETTLE — System Performance",
+  "uid": "settle-system-performance"
+}
