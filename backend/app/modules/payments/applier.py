@@ -34,6 +34,7 @@ def _apply_sync(command: dict):
                     currency=p_data["currency"],
                     sender_id=p_data["sender_id"],
                     receiver_id=p_data["receiver_id"],
+                    payment_method=p_data.get("payment_method"),
                     status=PaymentStatus(p_data["status"]),
                     originating_node_id=p_data["originating_node_id"],
                     processing_node_id=p_data["processing_node_id"],

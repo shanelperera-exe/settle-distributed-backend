@@ -60,6 +60,7 @@ class PaymentService:
         payments_pending.labels(node_id=settings.NODE_ID).inc()
         
         tracer = get_tracer()
+        init_success = False
         
         try:
             # 1. Prepare Local Model Representation
@@ -72,6 +73,7 @@ class PaymentService:
                 currency=payment_in.currency,
                 sender_id=payment_in.sender_id,
                 receiver_id=payment_in.receiver_id,
+                payment_method=payment_in.payment_method,
                 status=PaymentStatus.PENDING,
                 originating_node_id=settings.NODE_ID,
                 processing_node_id=settings.NODE_ID,
@@ -100,9 +102,7 @@ class PaymentService:
                 payment_processing_duration_seconds.labels(
                     node_id=settings.NODE_ID, stage="initiate"
                 ).observe(duration)
-                payments_processed_total.labels(
-                    node_id=settings.NODE_ID, status="success"
-                ).inc()
+                init_success = True
                 return new_payment
             else:
                 payments_failed_total.labels(
@@ -110,12 +110,10 @@ class PaymentService:
                 ).inc()
                 raise Exception("Failed to achieve quorum for payment initialization.")
         except Exception:
-            payments_processed_total.labels(
-                node_id=settings.NODE_ID, status="failure"
-            ).inc()
             raise
         finally:
-            payments_pending.labels(node_id=settings.NODE_ID).dec()
+            if not init_success:
+                payments_pending.labels(node_id=settings.NODE_ID).dec()
 
     async def finalize_payment(self, stripe_intent_id: str, success: bool):
         """
@@ -174,6 +172,7 @@ class PaymentService:
                 node_id=settings.NODE_ID,
                 status="success" if success else "failure"
             ).inc()
+            payments_pending.labels(node_id=settings.NODE_ID).dec()
             logger.info(f"Payment {payment.id} strictly finalized via webhook consensus. Status: {final_status}")
         else:
             payments_failed_total.labels(

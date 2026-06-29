@@ -28,6 +28,7 @@ class Payment(Base):
     
     sender_id = Column(String, index=True, nullable=False)
     receiver_id = Column(String, index=True, nullable=False)
+    payment_method = Column(String, nullable=True, default="pm_card_visa")
     
     status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
     

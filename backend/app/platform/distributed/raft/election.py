@@ -15,7 +15,7 @@ class ElectionManager:
         max_ms = max_timeout_ms if max_timeout_ms is not None else settings.RAFT_MAX_ELECTION_TIMEOUT_MS
         self.min_timeout = min_ms / 1000.0
         self.max_timeout = max_ms / 1000.0
-        self.last_heartbeat_time = time.time()
+        self.last_heartbeat_time = time.perf_counter()
         self.current_timeout = self._generate_timeout()
 
     def _generate_timeout(self) -> float:
@@ -27,7 +27,7 @@ class ElectionManager:
         Called whenever a valid heartbeat (AppendEntries) is received from a Leader,
         or when a node grants a vote to a Candidate.
         """
-        self.last_heartbeat_time = time.time()
+        self.last_heartbeat_time = time.perf_counter()
         self.current_timeout = self._generate_timeout()
 
     def is_timeout_reached(self) -> bool:
@@ -35,4 +35,4 @@ class ElectionManager:
         Checks if the randomized timeout has expired since the last heartbeat.
         If True, the node should transition to CANDIDATE and trigger an election.
         """
-        return (time.time() - self.last_heartbeat_time) > self.current_timeout
+        return (time.perf_counter() - self.last_heartbeat_time) > self.current_timeout

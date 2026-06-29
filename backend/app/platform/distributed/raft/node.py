@@ -81,6 +81,7 @@ class RaftNode:
         
         # Initialize metrics with current state
         raft_current_term.labels(node_id=self.node_id).set(self.state.current_term)
+        raft_leader_changes_total.labels(node_id=self.node_id).inc(0)
         self._update_role_metric()
         
         self.zk_registry.register_node()
@@ -360,6 +361,7 @@ class RaftNode:
                         logger.info(f"[{self.node_id}] Higher term {resp_term} seen. Stepping down.")
                         await self._update_term_and_vote(resp_term, None)
                         self.state.role = NodeState.FOLLOWER
+                        self._update_role_metric()
                         self.election_manager.reset_timer()  # MUST reset so we don't immediately re-elect
                         return
                     if resp.get("vote_granted"):
@@ -372,6 +374,7 @@ class RaftNode:
                 logger.info(f"[{self.node_id}] Lost election for term {current_term} ({votes}/{majority} votes). Backing off.")
                 # Back off to follower; _follower_loop will reset_timer on entry.
                 self.state.role = NodeState.FOLLOWER
+                self._update_role_metric()
 
     def _become_leader(self):
         """Transitions to LEADER state and reinitializes volatile leader state."""
@@ -501,6 +504,7 @@ class RaftNode:
             if term > self.state.current_term:
                 await self._update_term_and_vote(term, None)
                 self.state.role = NodeState.FOLLOWER
+                self._update_role_metric()
                 self.election_manager.reset_timer()
 
             vote_granted = False
