@@ -55,10 +55,14 @@ class RaftNode:
         self.peer_ips: Dict[str, str] = {}
         self.apply_callback = None
 
-        # Asyncio primitives
         self.lock = asyncio.Lock()
         self.loop_task = None
         self.applier_task = None
+
+        # Fault Injection Flags
+        self._fault_network_partition = False
+        self._fault_pause_replication = False
+        self._fault_replication_lag = 0.0
 
         # Heartbeat interval
         self.heartbeat_interval = settings.RAFT_HEARTBEAT_INTERVAL_SEC
@@ -500,6 +504,9 @@ class RaftNode:
     async def handle_request_vote(self, term: int, candidate_id: str,
                                    last_log_index: int, last_log_term: int) -> dict:
         """Incoming RequestVote RPC."""
+        if getattr(self, "_fault_network_partition", False):
+            return {"term": self.state.current_term, "vote_granted": False}
+            
         async with self.lock:
             if term > self.state.current_term:
                 await self._update_term_and_vote(term, None)
@@ -524,6 +531,17 @@ class RaftNode:
                                      prev_log_index: int, prev_log_term: int,
                                      entries: List[dict], leader_commit: int) -> dict:
         """Incoming AppendEntries RPC (heartbeat + log replication)."""
+        if getattr(self, "_fault_network_partition", False):
+            return {"term": self.state.current_term, "success": False}
+            
+        if getattr(self, "_fault_pause_replication", False):
+            # Silently ignore the request to simulate a dropped RPC or paused replication
+            return {"term": self.state.current_term, "success": False}
+            
+        lag = getattr(self, "_fault_replication_lag", 0.0)
+        if lag > 0:
+            await asyncio.sleep(lag)
+            
         async with self.lock:
             if term < self.state.current_term:
                 return {"term": self.state.current_term, "success": False}
@@ -558,6 +576,8 @@ class RaftNode:
 
     async def _send_request_vote(self, peer_id: str, term: int,
                                   last_log_index: int, last_log_term: int) -> Optional[dict]:
+        if getattr(self, "_fault_network_partition", False):
+            return None
         ip = self.peer_ips.get(peer_id, peer_id)
         url = f"http://{ip}:{settings.INTERNAL_PORT}/api/v1/raft/request_vote"
         payload = {
@@ -577,6 +597,8 @@ class RaftNode:
     async def _send_append_entries(self, peer_id: str, term: int,
                                     prev_log_index: int, prev_log_term: int,
                                     entries: list, leader_commit: int) -> Optional[dict]:
+        if getattr(self, "_fault_network_partition", False):
+            return None
         ip = self.peer_ips.get(peer_id, peer_id)
         url = f"http://{ip}:{settings.INTERNAL_PORT}/api/v1/raft/append_entries"
         payload = {

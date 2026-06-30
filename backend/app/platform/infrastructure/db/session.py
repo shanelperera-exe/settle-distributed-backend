@@ -26,6 +26,17 @@ def get_db():
     Dependency generator for FastAPI to yield a database session per request.
     Ensures the session is closed cleanly after the request finishes.
     """
+    from app.platform.core.chaos_state import chaos_state
+    
+    if chaos_state.db_delay_seconds > 0:
+        import time
+        time.sleep(chaos_state.db_delay_seconds)
+        
+    if chaos_state.db_error_rate > 0:
+        import random
+        if random.random() < chaos_state.db_error_rate:
+            raise Exception("Simulated Database Connection Timeout/Failure")
+
     db = SessionLocal()
     try:
         yield db

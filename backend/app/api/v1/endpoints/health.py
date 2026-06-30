@@ -64,5 +64,6 @@ def cluster_status():
             "zk_connected": zk_connected
         },
         "healthy_node_count": len(raft_node.active_peers),
-        "cluster_members": raft_node.active_peers
+        "cluster_members": raft_node.active_peers,
+        "leader_id": raft_node.state.leader_id
     }

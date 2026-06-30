@@ -3,8 +3,6 @@ import { FiDatabase, FiActivity, FiX } from 'react-icons/fi';
 import { BsHeartPulse, BsTerminal } from "react-icons/bs";
 import { GrClearOption } from "react-icons/gr";
 import { SiPostgresql } from "react-icons/si";
-import { GoDatabase } from "react-icons/go";
-
 
 // Same LogEntry as Nodes.tsx for consistency
 const LogEntry = ({ logString }: { logString: string }) => {
@@ -204,72 +202,7 @@ export default function Database() {
         </div>
       )}
       
-      {/* Replication Topology */}
-      {dbNodes.length > 0 && (
-        <div className="border-y border-[var(--glass-border)] bg-[var(--surface-solid)]/10 mt-8 py-8 flex flex-col items-center">
-          <div className="text-[11px] text-[var(--text-muted)] font-space uppercase tracking-wider mb-6 flex items-center gap-2">
-            <FiActivity className="text-[var(--primary)]" />
-            Live Replication Topology
-          </div>
-          <div className="flex flex-col items-center w-full max-w-4xl relative">
-            {/* Primary */}
-            <div className="flex flex-col items-center z-10 gap-2">
-              <GoDatabase size={64} className="text-emerald-500" />
-              <div className="flex flex-col items-center gap-1">
-                <div className="text-[var(--text)] font-space font-bold text-xl">
-                  {dbNodes.find(n => n.role === 'PRIMARY')?.id || 'No Primary'}
-                </div>
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-0.5 border border-emerald-500/20">
-                  Primary
-                </div>
-              </div>
-            </div>
-            
-            {/* Connecting Lines */}
-            <div className="h-12 w-[1px] bg-[var(--glass-border)] z-0 relative">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="w-[4px] h-[4px] bg-emerald-500 rounded-full absolute left-1/2 -translate-x-1/2 animate-streamDown" style={{ animationDelay: `${i * 0.5}s` }}></div>
-              ))}
-            </div>
-            <div className="h-[1px] w-[50%] md:w-[74%] max-w-4xl bg-[var(--glass-border)] z-0 relative flex">
-               <div className="flex-1 h-full relative">
-                 {[0, 1, 2, 3].map(i => (
-                   <div key={i} className="w-[4px] h-[4px] bg-emerald-500 rounded-full absolute top-1/2 -translate-y-1/2 animate-streamLeft" style={{ animationDelay: `${i * 0.5}s` }}></div>
-                 ))}
-               </div>
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[var(--surface-solid)] border border-[var(--glass-border)] px-4 py-1.5 text-xs font-mono text-[var(--text)] font-bold z-10">STREAMING</div>
-               <div className="flex-1 h-full relative">
-                 {[0, 1, 2, 3].map(i => (
-                   <div key={i} className="w-[4px] h-[4px] bg-emerald-500 rounded-full absolute top-1/2 -translate-y-1/2 animate-streamRight" style={{ animationDelay: `${i * 0.5}s` }}></div>
-                 ))}
-               </div>
-            </div>
-            
-            {/* Replicas */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl z-10 mt-0 px-4">
-              {dbNodes.filter(n => n.role === 'REPLICA').map((n, index) => {
-                const horizontalOffset = (index === 0 || index === 3) ? 1.7 : 0.66;
-                return (
-                  <div key={n.id} className="flex flex-col items-center">
-                    <div className="h-10 w-[1px] bg-[var(--glass-border)] relative">
-                      {[0, 1, 2, 3].map(i => (
-                        <div key={i} className="w-[4px] h-[4px] bg-emerald-500 rounded-full absolute left-1/2 -translate-x-1/2 animate-streamDown" style={{ animationDelay: `${i * 0.5 + horizontalOffset}s` }}></div>
-                      ))}
-                      <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[11px] text-emerald-500 font-mono whitespace-nowrap font-bold z-10">~{n.latency ?? Math.floor(Math.random() * 8 + 1)}ms</div>
-                    </div>
-                  <div className="flex flex-col items-center justify-center gap-2 mt-2 group relative">
-                    <GoDatabase size={48} className="text-gray-400 group-hover:text-emerald-500 transition-colors duration-300" />
-                    <div className="text-[var(--text)] font-space font-bold text-base transition-colors duration-300">
-                      {n.id}
-                    </div>
-                  </div>
-                </div>
-              );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {dbNodes.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 border-y border-[var(--glass-border)] mt-8">
@@ -305,6 +238,16 @@ export default function Database() {
                   <div className="flex justify-between items-center text-sm font-space text-[var(--text-muted)]">
                     <span className="flex items-center gap-1.5"><FiActivity /> TPS</span>
                     <span className="text-[var(--text)]">{node.tps ? node.tps.toFixed(1) : '0'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm font-space text-[var(--text-muted)]">
+                    <span className="flex items-center gap-1.5"><FiActivity /> Replication Lag</span>
+                    {node.role === 'REPLICA' ? (
+                      <span className={`font-bold ${(node.latency ?? 0) > 5 ? 'text-orange-500' : 'text-[var(--text)]'}`}>
+                        {node.latency ?? Math.floor(Math.random() * 8 + 1)}ms
+                      </span>
+                    ) : (
+                      <span className="text-[var(--text-muted)] opacity-50">N/A</span>
+                    )}
                   </div>
                 </div>
               </div>

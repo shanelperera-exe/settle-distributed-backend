@@ -179,6 +179,16 @@ async def process_payment(
             stripe_intent_id=intent.id,
         )
 
+        # --- Step 3b: Auto-finalize if synchronous confirmation succeeded ---
+        if intent.status == "succeeded":
+            from app.platform.distributed.raft.node import raft_node
+            # Wait for the state machine to apply the init command to the DB
+            target = raft_node.state.commit_index
+            while raft_node.state.last_applied < target:
+                await asyncio.sleep(0.01)
+            await payment_service.finalize_payment(intent.id, success=True)
+            payment.status = PaymentStatus.COMPLETED
+
         response_data = {
             "payment_id": payment.id,
             "transaction_id": payment.transaction_id,

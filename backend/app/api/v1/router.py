@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import health, payments, clock, webhooks, raft, raft_health, metrics_endpoint, database
+from app.api.v1.endpoints import health, payments, clock, webhooks, raft, raft_health, metrics_endpoint, database, chaos
 from app.api.dependencies.auth import verify_api_key, verify_raft_token
 
 api_router = APIRouter()
@@ -11,3 +11,4 @@ api_router.include_router(raft.router, prefix="/raft", tags=["Raft Consensus"], 
 api_router.include_router(raft_health.router, prefix="/health", tags=["Raft Health"])
 api_router.include_router(metrics_endpoint.router, tags=["Monitoring"])
 api_router.include_router(database.router, prefix="/database", tags=["Database Metrics"])
+api_router.include_router(chaos.router, prefix="/chaos", tags=["Chaos Engineering"])
