@@ -21,3 +21,7 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-httpx
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

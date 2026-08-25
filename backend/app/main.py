@@ -13,6 +13,7 @@ import app.financial.ledger.models
 import app.financial.idempotency.models
 import app.platform.distributed.raft.models
 import app.platform.distributed.zookeeper.models
+import app.platform.core.models
 
 # Distributed Subsystems will be initialized via lifespan
 
@@ -28,8 +29,20 @@ try:
     logger.info("Initializing database tables...")
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables initialized successfully.")
+    
+    # Seed default users
+    from app.platform.infrastructure.db.session import SessionLocal
+    from app.platform.core.models import User
+    from app.platform.core.security import get_password_hash
+    with SessionLocal() as db:
+        if not db.query(User).filter(User.username == "admin").first():
+            db.add(User(username="admin", hashed_password=get_password_hash("admin123"), role="admin"))
+        if not db.query(User).filter(User.username == "viewer").first():
+            db.add(User(username="viewer", hashed_password=get_password_hash("viewer123"), role="viewer"))
+        db.commit()
+    logger.info("Default users seeded.")
 except Exception as e:
-    logger.error(f"Failed to initialize database tables: {e}", exc_info=True)
+    logger.error(f"Failed to initialize database tables or seed users: {e}", exc_info=True)
 
 from app.platform.distributed.zookeeper.client import ZKClientManager
 from app.platform.distributed.raft.node import raft_node

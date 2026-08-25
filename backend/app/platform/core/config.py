@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     TRACING_SAMPLE_RATE: float = Field(1.0, description="Trace sampling rate (1.0 = sample everything)")
     LOKI_URL: str = Field("http://localhost:3100", description="Loki log aggregation endpoint")
 
+    # Authentication & RBAC
+    JWT_SECRET_KEY: str = Field(..., description="Secret key for signing JWT tokens")
+    JWT_ALGORITHM: str = Field("HS256", description="Algorithm used for JWT")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(1440, description="Access token expiration time (default 24h)")
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -88,21 +92,24 @@ try:
     settings = Settings()
 except Exception as e:
     # Handle missing keys gracefully with a secure fallback
-    import copy
-    env_data = dict(os.environ)
     missing = False
     
-    if "API_KEY" not in env_data:
-        env_data["API_KEY"] = secrets.token_hex(32)
-        print(f"WARNING: API_KEY not provided! Generating an ephemeral instance-isolated secret key for security: {env_data['API_KEY']}")
+    if "API_KEY" not in os.environ:
+        os.environ["API_KEY"] = secrets.token_hex(32)
+        print(f"WARNING: API_KEY not provided! Generating an ephemeral instance-isolated secret key for security: {os.environ['API_KEY']}")
         missing = True
         
-    if "RAFT_INTERNAL_TOKEN" not in env_data:
-        env_data["RAFT_INTERNAL_TOKEN"] = secrets.token_hex(32)
-        print(f"WARNING: RAFT_INTERNAL_TOKEN not provided! Generating an ephemeral instance-isolated secret key for security: {env_data['RAFT_INTERNAL_TOKEN']}")
+    if "RAFT_INTERNAL_TOKEN" not in os.environ:
+        os.environ["RAFT_INTERNAL_TOKEN"] = secrets.token_hex(32)
+        print(f"WARNING: RAFT_INTERNAL_TOKEN not provided! Generating an ephemeral instance-isolated secret key for security: {os.environ['RAFT_INTERNAL_TOKEN']}")
+        missing = True
+        
+    if "JWT_SECRET_KEY" not in os.environ:
+        os.environ["JWT_SECRET_KEY"] = secrets.token_hex(32)
+        print(f"WARNING: JWT_SECRET_KEY not provided! Generating an ephemeral secret key.")
         missing = True
         
     if missing:
-        settings = Settings(**env_data)
+        settings = Settings()
     else:
         raise e

@@ -22,7 +22,8 @@ import { useAlerts } from "../contexts/AlertContext";
 import type { Alert } from "../contexts/AlertContext";
 import LogoImg from "../assets/logos/settle_logo_primary.svg";
 import LogoWordGreen from "../assets/logos/logo_word_green.svg";
-
+import { useAuth } from "../contexts/AuthContext";
+import { FiLogOut } from "react-icons/fi";
 const formatTime = (ts: string) => {
   const d = new Date(ts);
   return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -425,11 +426,13 @@ const CornerNav = () => {
 };
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--text)] overflow-hidden">
       <Sidebar />
       <ExampleContent children={children} />
-      <CornerNav />
+      {user?.role === 'admin' && <CornerNav />}
     </div>
   );
 };
@@ -502,8 +505,48 @@ const Sidebar = () => {
         />
       </div>
 
-      <ToggleClose open={open} setOpen={setOpen} />
+      <div className="w-full mt-auto">
+        <LogoutOption open={open} />
+        <ToggleClose open={open} setOpen={setOpen} />
+      </div>
     </motion.nav>
+  );
+};
+
+const LogoutOption = ({ open }: { open: boolean }) => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <motion.button
+      layout
+      onClick={handleLogout}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      className={`relative flex h-12 items-center rounded-none transition-colors mb-2 w-full justify-start hover:bg-red-500/10 text-red-400 hover:text-red-300 ${
+        open ? 'px-4' : 'justify-center'
+      }`}
+    >
+      <motion.div layout className="shrink-0 place-content-center text-2xl relative z-10 flex items-center justify-center">
+        <FiLogOut />
+      </motion.div>
+      {open && (
+        <motion.span
+          layout
+          initial={{ opacity: 0, width: 0 }}
+          animate={{ opacity: 1, width: "auto" }}
+          transition={{ delay: 0.125 }}
+          className="text-base font-google-code font-bold whitespace-nowrap ml-4 relative z-10"
+        >
+          Logout
+        </motion.span>
+      )}
+    </motion.button>
   );
 };
 
@@ -616,7 +659,7 @@ const ToggleClose = ({ open, setOpen }: { open: boolean, setOpen: React.Dispatch
     <motion.button
       layout
       onClick={() => setOpen((pv: boolean) => !pv)}
-      className="border-t border-[var(--glass-border)] rounded-none transition-colors hover:bg-[var(--background)] w-full mt-auto rounded-none text-[var(--text-muted)] hover:text-[var(--text)] p-1"
+      className="border-t border-[var(--glass-border)] rounded-none transition-colors hover:bg-[var(--background)] w-full rounded-none text-[var(--text-muted)] hover:text-[var(--text)] p-1"
     >
       <div className={`flex items-center p-2 ${open ? "justify-start" : "justify-center"}`}>
         <motion.div
