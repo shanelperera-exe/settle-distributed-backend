@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(..., description="Secret key for signing JWT tokens")
     JWT_ALGORITHM: str = Field("HS256", description="Algorithm used for JWT")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(1440, description="Access token expiration time (default 24h)")
+    
+    # Caching
+    REDIS_URL: str = Field("redis://redis:6379/0", description="Redis connection URL for caching layer")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

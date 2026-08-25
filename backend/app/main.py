@@ -65,11 +65,17 @@ async def lifespan(app: FastAPI):
     from app.platform.distributed.clock import start_clock_subsystem, stop_clock_subsystem
     start_clock_subsystem()
     
+    # 4. Connect to Redis Caching Layer
+    from app.platform.infrastructure.cache.redis_client import redis_cache
+    await redis_cache.connect()
+    
     logger.info("Application startup complete. Node is ready.")
     yield
     
     # ── Shutdown ──────────────────────────────────────────────────────────────
     logger.info("Shutting down distributed subsystems...")
+    from app.platform.infrastructure.cache.redis_client import redis_cache
+    await redis_cache.disconnect()
     stop_clock_subsystem()
     ZKClientManager.close()
     shutdown_tracing()

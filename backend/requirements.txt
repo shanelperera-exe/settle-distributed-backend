@@ -25,3 +25,4 @@ opentelemetry-instrumentation-httpx
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
+redis

@@ -54,6 +54,19 @@ services:
     networks:
       - settle-net
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - settle-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   postgres-1:
     <<: *postgres-common
     container_name: postgres-1

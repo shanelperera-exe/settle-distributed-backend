@@ -22,6 +22,9 @@ from app.platform.observability.logging import logger
 
 from app.platform.integrations.stripe_service import stripe_service
 from app.modules.payments.services import PaymentService
+from app.platform.infrastructure.cache.redis_client import redis_cache
+import hashlib
+import json
 
 router = APIRouter()
 
@@ -218,9 +221,16 @@ async def list_payments(request: Request, db: Session = Depends(get_db), skip: i
     if proxy_resp:
         return proxy_resp
 
+    cache_key = f"payments_list:{skip}:{limit}"
+    cached_data = await redis_cache.get(cache_key)
+    if cached_data:
+        logger.info(f"Cache HIT for {cache_key}")
+        return cached_data
+        
+    logger.info(f"Cache MISS for {cache_key}")
     payments = db.query(Payment).order_by(Payment.created_at.desc()).offset(skip).limit(limit).all()
     
-    return [
+    response_data = [
         {
             "payment_id": p.id,
             "transaction_id": p.transaction_id,
@@ -232,6 +242,9 @@ async def list_payments(request: Request, db: Session = Depends(get_db), skip: i
             "status": p.status.value if hasattr(p.status, "value") else str(p.status)
         } for p in payments
     ]
+    
+    await redis_cache.set(cache_key, response_data, expire=10)
+    return response_data
 
 @router.get("/stats/volume")
 async def get_volume_stats(
@@ -248,6 +261,13 @@ async def get_volume_stats(
     if proxy_resp:
         return proxy_resp
 
+    cache_key = f"volume_stats:{metric}:{time_range}:{custom_date or 'none'}"
+    cached_data = await redis_cache.get(cache_key)
+    if cached_data:
+        logger.info(f"Cache HIT for {cache_key}")
+        return cached_data
+        
+    logger.info(f"Cache MISS for {cache_key}")
     now = datetime.utcnow()
     if time_range == "custom" and custom_date:
         try:
@@ -329,7 +349,7 @@ async def get_volume_stats(
     ).all()
     total_gross_24h = sum(float(p.amount) for p in last_24h_payments)
     
-    return {
+    response_data = {
         "metric": metric,
         "time_range": time_range,
         "current_value": round(current_value, 2),
@@ -337,6 +357,9 @@ async def get_volume_stats(
         "total_gross_24h": round(total_gross_24h, 2),
         "timeseries": timeseries
     }
+    
+    await redis_cache.set(cache_key, response_data, expire=15)
+    return response_data
 
 @router.get("/{payment_id}", response_model=Dict[str, Any])
 async def get_payment(payment_id: str, request: Request, db: Session = Depends(get_db)):
