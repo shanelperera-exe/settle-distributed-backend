@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+  zookeeper:
+    image: zookeeper:3.9
+    container_name: zookeeper-ha
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+    ports:
+      - "2181:2181"
+    networks:
+      - pg-ha-net
+
+  postgres-primary:
+    image: bitnami/postgresql:15
+    container_name: postgres-primary
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=master
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_USERNAME=settle-user
+      - POSTGRESQL_PASSWORD=settle@1234
+      - POSTGRESQL_DATABASE=settle
+    ports:
+      - "5432:5432"
+    networks:
+      - pg-ha-net
+
+  postgres-replica:
+    image: bitnami/postgresql:15
+    container_name: postgres-replica
+    environment:
+      - POSTGRESQL_REPLICATION_MODE=slave
+      - POSTGRESQL_REPLICATION_USER=repl_user
+      - POSTGRESQL_REPLICATION_PASSWORD=repl_password
+      - POSTGRESQL_MASTER_HOST=postgres-primary
+      - POSTGRESQL_MASTER_PORT_NUMBER=5432
+      - POSTGRESQL_USERNAME=settle-user
+      - POSTGRESQL_PASSWORD=settle@1234
+    depends_on:
+      - postgres-primary
+    ports:
+      - "5433:5432"
+    networks:
+      - pg-ha-net
+
+  failover-controller-primary:
+    build:
+      context: ../backend
+      dockerfile: ../infra/docker/Dockerfile
+    container_name: failover-controller-primary
+    command: ["python", "/app/scripts/pg_failover_controller.py"]
+    environment:
+      - ZOOKEEPER_HOST=zookeeper:2181
+      - NODE_ID=postgres-primary
+      - IS_PRIMARY=true
+      - PGDATA=/bitnami/postgresql/data
+    depends_on:
+      - zookeeper
+      - postgres-primary
+    networks:
+      - pg-ha-net
+
+  failover-controller-replica:
+    build:
+      context: ../backend
+      dockerfile: ../infra/docker/Dockerfile
+    container_name: failover-controller-replica
+    command: ["python", "/app/scripts/pg_failover_controller.py"]
+    environment:
+      - ZOOKEEPER_HOST=zookeeper:2181
+      - NODE_ID=postgres-replica
+      - IS_PRIMARY=false
+      - PGDATA=/bitnami/postgresql/data
+    depends_on:
+      - zookeeper
+      - postgres-replica
+    networks:
+      - pg-ha-net
+
+networks:
+  pg-ha-net:
+    driver: bridge
