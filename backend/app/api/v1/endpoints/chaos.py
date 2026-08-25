@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 
 from app.platform.core.config import settings
 from app.platform.observability.logging import logger
+from app.platform.observability.alerts import alert_manager
 from app.platform.distributed.raft.node import raft_node
 from app.platform.distributed.raft.state import NodeState
 
@@ -15,6 +16,15 @@ router = APIRouter()
 class ChaosInjectionRequest(BaseModel):
     target_node: str
     scenario: str
+
+def kill_node_task():
+    logger.warning(f"[{settings.NODE_ID}] Simulating Node Death. Stopping ZK and sleeping...")
+    try:
+        raft_node.zk_registry.zk.stop()
+    except Exception as e:
+        logger.error(f"Error stopping ZK: {e}")
+    time.sleep(15)
+    os._exit(1)
 
 async def cpu_spike_task():
     logger.warning(f"[{settings.NODE_ID}] Starting CPU spike...")
@@ -67,8 +77,8 @@ async def inject_chaos(request: ChaosInjectionRequest, background_tasks: Backgro
     logger.warning(f"[{settings.NODE_ID}] EXECUTING CHAOS SCENARIO: {scenario}")
 
     if scenario == "KILL_NODE":
-        background_tasks.add_task(os._exit, 1)
-        return {"status": "success", "message": f"Node {settings.NODE_ID} will crash immediately."}
+        background_tasks.add_task(kill_node_task)
+        return {"status": "success", "message": f"Node {settings.NODE_ID} will simulate extended death and crash."}
     
     elif scenario == "GRACEFUL_RESTART":
         background_tasks.add_task(os._exit, 0)

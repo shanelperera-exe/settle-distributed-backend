@@ -135,7 +135,7 @@ async def process_payment(
         last_error = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=30.0) as client:
                     resp = await client.post(
                         target_url,
                         headers=headers,
@@ -153,7 +153,7 @@ async def process_payment(
     # --- Step 1: Idempotency / dedup check ---
     dedup_manager = IdempotencyManager(db)
     try:
-        is_dup, cached_body, cached_code = dedup_manager.check_or_create_lock(
+        is_dup, cached_body, cached_code = await dedup_manager.check_or_create_lock(
             idempotency_key, payment_in.model_dump(mode="json")
         )
         if is_dup:
@@ -197,12 +197,12 @@ async def process_payment(
             "status": payment.status.value,
         }
 
-        dedup_manager.finalize(idempotency_key, payment.id, 200, response_data)
+        await dedup_manager.finalize(idempotency_key, payment.id, 200, response_data)
         return JSONResponse(status_code=200, content=response_data)
 
     except Exception as e:
         logger.error(f"Error processing payment: {e}", exc_info=True)
-        dedup_manager.release_lock_on_failure(idempotency_key)
+        await dedup_manager.release_lock_on_failure(idempotency_key)
         msg = str(e).lower()
         if "quorum" in msg or "leadership" in msg or "not the leader" in msg:
             raise HTTPException(status_code=503, detail="Leader changed mid-transaction. Please retry.")

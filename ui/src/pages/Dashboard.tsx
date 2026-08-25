@@ -7,6 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 import { FiActivity, FiServer, FiCheckCircle, FiClock, FiAlertCircle, FiTrendingUp, FiXCircle } from 'react-icons/fi';
+import { LuLayoutDashboard } from 'react-icons/lu';
 import { Link } from 'react-router-dom';
 
 // Types
@@ -226,12 +227,19 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 pb-12">
       {/* Header */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold font-space text-gradient">Cluster Dashboard</h1>
-          <p className="text-[var(--text-muted)] mt-1">Real-time telemetry and cluster health monitoring.</p>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <div className="text-[var(--primary)]">
+          <LuLayoutDashboard size={48} />
         </div>
-      </div>
+        <div>
+          <h1 className="text-3xl font-light text-[var(--text)] tracking-tight">Cluster Dashboard</h1>
+          <p className="text-[var(--text-muted)] text-sm font-medium mt-1 uppercase tracking-widest">Real-time telemetry and cluster health monitoring</p>
+        </div>
+      </motion.div>
 
       {/* Top Stat Cards - Payments Style */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 lg:grid-cols-4 border-y border-[var(--glass-border)]">
@@ -267,7 +275,7 @@ export default function Dashboard() {
             <FiActivity className="text-[var(--primary)]" /> Throughput vs Latency vs Queue
           </h3>
           <div className="flex-1 min-h-0 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <LineChart data={timeSeries} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" opacity={0.5} />
                 <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={12} tickMargin={10} />
@@ -292,7 +300,7 @@ export default function Dashboard() {
             <FiCheckCircle className="text-purple-500" /> Payment Distribution
           </h3>
           <div className="flex-1 flex justify-center items-center">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <PieChart>
                 <Pie
                   data={pieData}
@@ -340,7 +348,7 @@ export default function Dashboard() {
             <FiServer className="text-blue-500" /> Live Node Utilization
           </h3>
           <div className="flex-1 min-h-0 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <BarChart data={nodeData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} barGap={8}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" opacity={0.5} />
                 <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickMargin={10} />

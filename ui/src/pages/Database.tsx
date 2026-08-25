@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
 import { FiDatabase, FiActivity, FiX } from 'react-icons/fi';
 import { BsHeartPulse, BsTerminal } from "react-icons/bs";
 import { GrClearOption } from "react-icons/gr";
@@ -73,7 +75,6 @@ export default function Database() {
   const [activeTerminalNode, setActiveTerminalNode] = useState<string | null>(null);
   const [nodeLogs, setNodeLogs] = useState<string[]>([]);
   const [clearedLogLines, setClearedLogLines] = useState<Set<string>>(new Set());
-  const [slowQueries, setSlowQueries] = useState<any[]>([]);
 
 
 
@@ -174,12 +175,19 @@ export default function Database() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold font-space text-gradient">Database Cluster</h1>
-          <p className="text-[var(--text-muted)] mt-1">PostgreSQL distributed storage and replication.</p>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <div className="text-[var(--primary)]">
+          <FiDatabase size={48} />
         </div>
-      </div>
+        <div>
+          <h1 className="text-3xl font-light text-[var(--text)] tracking-tight">Database Cluster</h1>
+          <p className="text-[var(--text-muted)] text-sm font-medium mt-1 uppercase tracking-widest">PostgreSQL distributed storage and replication.</p>
+        </div>
+      </motion.div>
       
       {dbNodes.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 border-y border-[var(--glass-border)] mt-8">
@@ -287,46 +295,6 @@ export default function Database() {
           </div>
         </div>
       )}
-      {/* Slow Queries Feed */}
-      <div className="border border-[var(--glass-border)] bg-[var(--surface)] mt-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--glass-border)] bg-[var(--surface-solid)]/50">
-          <h2 className="font-space font-bold text-lg flex items-center gap-2">
-            <FiActivity className="text-orange-500" />
-            Active Slow Queries
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left font-mono text-sm">
-            <thead className="bg-[var(--surface-solid)]/30 text-[var(--text-muted)] text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-3 border-b border-[var(--glass-border)]">Node</th>
-                <th className="px-6 py-3 border-b border-[var(--glass-border)]">Query</th>
-                <th className="px-6 py-3 border-b border-[var(--glass-border)]">Duration (ms)</th>
-                <th className="px-6 py-3 border-b border-[var(--glass-border)]">State</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--glass-border)] text-[var(--text)]">
-              {slowQueries.length > 0 ? slowQueries.map(q => (
-                <tr key={q.id} className="hover:bg-[var(--surface-solid)]/20 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-400">{q.node}</td>
-                  <td className="px-6 py-4 truncate max-w-3xl opacity-80">{q.query}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-none text-xs font-bold ${q.duration > 1000 ? 'bg-red-500/20 text-red-500' : 'bg-orange-500/20 text-orange-500'}`}>
-                      {q.duration}ms
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-[var(--text-muted)]">{q.state}</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-[var(--text-muted)] animate-pulse">Monitoring queries...</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
     </div>
   );
 }

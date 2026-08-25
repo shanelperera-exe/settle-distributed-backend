@@ -19,7 +19,7 @@ groups:
       # A cluster without a leader cannot process writes (payments).
       - alert: LeaderNodeDown
         expr: sum(raft_node_role{role="LEADER"}) == 0
-        for: 30s
+        for: 5s
         labels:
           severity: critical
           team: sre
@@ -31,7 +31,7 @@ groups:
       # Alert: A backend node is unreachable
       - alert: NodeOffline
         expr: up{job="settle-nodes"} == 0
-        for: 30s
+        for: 5s
         labels:
           severity: critical
           team: sre
@@ -42,7 +42,7 @@ groups:
       # Alert: Cluster has lost quorum (fewer than 3/5 nodes up)
       - alert: QuorumFailure
         expr: count(up{job="settle-nodes"} == 1) < 3
-        for: 15s
+        for: 5s
         labels:
           severity: critical
           team: sre

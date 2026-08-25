@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FiServer, FiCpu, FiHardDrive, FiActivity, FiX, FiAlertTriangle } from 'react-icons/fi';
+import { FaCircleNodes } from "react-icons/fa6";
 import { BsHeartPulse, BsTerminal } from "react-icons/bs";
 import { GrClearOption } from "react-icons/gr";
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
 
 
 type MetricHistory = { time: number; val: number };
@@ -78,7 +80,7 @@ const LogEntry = ({ logString }: { logString: string }) => {
 
 const Sparkline = ({ data, dataKey, color }: { data: any[], dataKey: string, color: string }) => (
   <div className="h-[25px] w-full mt-0.5">
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
       <AreaChart data={data}>
         <defs>
           <linearGradient id={`grad-${dataKey}-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
@@ -256,12 +258,19 @@ export default function Nodes() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold font-space text-gradient">Cluster Nodes</h1>
-          <p className="text-[var(--text-muted)] mt-1">Real-time telemetry and cluster health monitoring.</p>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <div className="text-[var(--primary)]">
+          <FaCircleNodes size={48} />
         </div>
-      </div>
+        <div>
+          <h1 className="text-3xl font-light text-[var(--text)] tracking-tight">Cluster Nodes</h1>
+          <p className="text-[var(--text-muted)] text-sm font-medium mt-1 uppercase tracking-widest">Real-time telemetry and cluster health monitoring.</p>
+        </div>
+      </motion.div>
       
       {nodes.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 border-y border-[var(--glass-border)] mt-8">

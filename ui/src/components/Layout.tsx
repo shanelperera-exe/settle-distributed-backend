@@ -10,14 +10,23 @@ import {
   FiServer,
   FiHardDrive,
   FiDollarSign,
-  FiTerminal
+  FiTerminal,
+  FiMap
 } from "react-icons/fi";
 import { LuLayoutDashboard } from "react-icons/lu";
 import { FaCircleNodes } from "react-icons/fa6";
 import { GrTest, GrClearOption } from "react-icons/gr";
 import { motion, AnimatePresence } from "framer-motion";
+import { AiOutlineAlert } from "react-icons/ai";
+import { useAlerts } from "../contexts/AlertContext";
+import type { Alert } from "../contexts/AlertContext";
 import LogoImg from "../assets/logos/settle_logo_primary.svg";
 import LogoWordGreen from "../assets/logos/logo_word_green.svg";
+
+const formatTime = (ts: string) => {
+  const d = new Date(ts);
+  return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
 
 const TooltipButton = ({ label, info, onClick, position = "top", align = "center" }: { label: string, info: string, onClick: (label: string, info: string) => void, position?: "top" | "bottom", align?: "left" | "center" | "right" }) => {
   const [show, setShow] = useState(false);
@@ -41,7 +50,7 @@ const TooltipButton = ({ label, info, onClick, position = "top", align = "center
     >
       <button 
         onClick={() => onClick(label, info)} 
-        className="w-full text-left px-4 py-3 rounded-none bg-neutral-900 hover:bg-neutral-800 transition-all text-sm font-medium border border-neutral-800 hover:border-emerald-500/50 hover:-translate-y-0.5 shadow-sm text-neutral-300"
+        className="w-full text-left px-4 py-3 rounded-none bg-[var(--background)] hover:bg-[var(--surface)] transition-all text-sm font-medium border border-[var(--glass-border)] hover:border-[var(--primary)] hover:-translate-y-0.5 shadow-sm text-[var(--text)]"
       >
         {label}
       </button>
@@ -52,11 +61,68 @@ const TooltipButton = ({ label, info, onClick, position = "top", align = "center
             animate={{ opacity: 1, y: 0, scale: 1 }} 
             exit={{ opacity: 0, y: position === "top" ? 2 : -2, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className={`absolute ${alignClasses} ${position === "top" ? "bottom-full mb-3" : "top-full mt-3"} w-64 bg-neutral-950 border border-emerald-500/40 text-neutral-300 text-xs leading-relaxed p-4 shadow-2xl z-[100] pointer-events-none`}
+            className={`absolute ${alignClasses} ${position === "top" ? "bottom-full mb-3" : "top-full mt-3"} w-64 bg-[var(--surface)] border border-[var(--glass-border)] text-[var(--text)] text-xs leading-relaxed p-4 shadow-2xl z-[100] pointer-events-none`}
           >
-            <div className="font-bold text-emerald-400 mb-2 border-b border-emerald-500/20 pb-1.5">{label}</div>
+            <div className="font-bold text-[var(--primary)] mb-2 border-b border-[var(--glass-border)] pb-1.5">{label}</div>
             {info}
-            <div className={`absolute ${arrowClasses} w-2 h-2 bg-neutral-950 border-emerald-500/40 rotate-45 ${position === "top" ? "-bottom-[5px] border-b border-r" : "-top-[5px] border-t border-l"}`}></div>
+            <div className={`absolute ${arrowClasses} w-2 h-2 bg-[var(--surface)] border-[var(--glass-border)] rotate-45 ${position === "top" ? "-bottom-[5px] border-b border-r" : "-top-[5px] border-t border-l"}`}></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const TooltipSelectButton = ({ label, info, onClick, position = "top", align = "center", options, selectedValue, onSelectChange }: { label: string, info: string, onClick: (label: string, info: string) => void, position?: "top" | "bottom", align?: "left" | "center" | "right", options: {label: string, value: string}[], selectedValue: string, onSelectChange: (val: string) => void }) => {
+  const [show, setShow] = useState(false);
+  
+  let alignClasses = "left-1/2 -translate-x-1/2";
+  let arrowClasses = "left-1/2 -translate-x-1/2";
+  
+  if (align === "left") {
+    alignClasses = "left-0";
+    arrowClasses = "left-8";
+  } else if (align === "right") {
+    alignClasses = "right-0";
+    arrowClasses = "right-8";
+  }
+  
+  return (
+    <div 
+      className="relative flex w-full group" 
+      onMouseEnter={() => setShow(true)} 
+      onMouseLeave={() => setShow(false)}
+    >
+      <div className="w-full flex items-center bg-[var(--background)] group-hover:bg-[var(--surface)] transition-all border border-[var(--glass-border)] group-hover:border-[var(--primary)] group-hover:-translate-y-0.5 shadow-sm text-[var(--text)] text-sm font-medium">
+        <button 
+          onClick={() => onClick(label, info)} 
+          className="flex-1 text-left px-4 py-3 h-full rounded-none"
+        >
+          {label}
+        </button>
+        <div className="h-full border-l border-[var(--glass-border)] group-hover:border-[var(--primary)] transition-colors flex items-center bg-[var(--surface-sunken)]">
+          <select 
+            value={selectedValue}
+            onChange={(e) => onSelectChange(e.target.value)}
+            className="bg-transparent text-[var(--text)] text-xs font-bold uppercase tracking-widest pl-4 pr-9 py-3 outline-none cursor-pointer appearance-none relative"
+            style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23999%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.8rem top 50%', backgroundSize: '0.65rem auto' }}
+          >
+            {options.map(opt => <option key={opt.value} value={opt.value} className="bg-[var(--surface-solid)]">{opt.label}</option>)}
+          </select>
+        </div>
+      </div>
+      <AnimatePresence>
+        {show && (
+          <motion.div 
+            initial={{ opacity: 0, y: position === "top" ? 5 : -5, scale: 0.95 }} 
+            animate={{ opacity: 1, y: 0, scale: 1 }} 
+            exit={{ opacity: 0, y: position === "top" ? 2 : -2, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className={`absolute ${alignClasses} ${position === "top" ? "bottom-full mb-3" : "top-full mt-3"} w-64 bg-[var(--surface)] border border-[var(--glass-border)] text-[var(--text)] text-xs leading-relaxed p-4 shadow-2xl z-[100] pointer-events-none`}
+          >
+            <div className="font-bold text-[var(--primary)] mb-2 border-b border-[var(--glass-border)] pb-1.5">{label}</div>
+            {info}
+            <div className={`absolute ${arrowClasses} w-2 h-2 bg-[var(--surface)] border-[var(--glass-border)] rotate-45 ${position === "top" ? "-bottom-[5px] border-b border-r" : "-top-[5px] border-t border-l"}`}></div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -68,6 +134,7 @@ const CornerNav = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<{msg: string, type: 'info' | 'exec' | 'success'}[]>([]);
   const consoleRef = useRef<HTMLDivElement>(null);
+  const [selectedNodeToKill, setSelectedNodeToKill] = useState("node-1");
 
   useEffect(() => {
     if (logs.length === 0) {
@@ -129,12 +196,12 @@ const CornerNav = () => {
       } catch (err) {
         // Ignore network errors during polling
       }
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  const runSimulation = async (label: string, _info: string) => {
+  const runSimulation = async (label: string, _info: string, specificNode?: string) => {
     setLogs(prev => [...prev, { msg: `[${new Date().toLocaleTimeString()}] Executing: ${label}`, type: 'exec' }]);
     
     try {
@@ -151,7 +218,10 @@ const CornerNav = () => {
       let target_node = nodes[Math.floor(Math.random() * nodes.length)];
       let scenario = "MOCK_SCENARIO";
 
-      if (label === "Kill Leader Node") {
+      if (label === "Kill Node" && specificNode) {
+          scenario = "KILL_NODE";
+          target_node = specificNode;
+      } else if (label === "Kill Leader Node") {
           scenario = "KILL_NODE";
           if (leader) target_node = leader;
       } else if (label === "Kill Random Follower") {
@@ -210,7 +280,7 @@ const CornerNav = () => {
             key="button"
             layoutId="corner-menu"
             onClick={() => setIsOpen(true)}
-            className="group fixed right-4 bottom-4 z-50 h-20 w-20 bg-neutral-950 border border-emerald-500/30 hover:border-emerald-500/60 shadow-xl rounded-none flex items-center justify-center text-white transition-colors"
+            className="group fixed right-4 bottom-4 z-50 h-20 w-20 bg-[var(--surface)] border border-[var(--glass-border)] hover:border-[var(--primary)] shadow-xl rounded-none flex items-center justify-center text-[var(--text)] transition-colors"
           >
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }}>
               <GrTest size={40} className="transition-transform group-hover:scale-110" />
@@ -220,23 +290,23 @@ const CornerNav = () => {
           <motion.div 
             key="menu"
             layoutId="corner-menu"
-            className="fixed right-4 bottom-4 z-[60] w-[95vw] md:w-[48rem] h-[90vh] rounded-none bg-neutral-950 flex flex-col shadow-2xl border border-emerald-500/30 overflow-hidden text-neutral-200"
+            className="fixed right-4 bottom-4 z-[60] w-[95vw] md:w-[48rem] h-[90vh] rounded-none bg-[var(--surface)] flex flex-col shadow-2xl border border-[var(--glass-border)] overflow-hidden text-[var(--text)]"
           >
-            <div className="p-6 pb-4 border-b border-white/5 shrink-0 bg-neutral-900/50">
-              <div className="text-xs uppercase tracking-widest font-space font-bold opacity-70 mb-1 text-emerald-400">Chaos Engineering</div>
-              <h3 className="text-2xl font-bold tracking-tight text-white">Simulation Tools</h3>
+            <div className="p-6 pb-4 border-b border-[var(--glass-border)] shrink-0 bg-[var(--background)]">
+              <div className="text-xs uppercase tracking-widest font-space font-bold opacity-70 mb-1 text-[var(--primary)]">Chaos Engineering</div>
+              <h3 className="text-2xl font-bold tracking-tight text-[var(--text)]">Simulation Tools</h3>
             </div>
 
             {/* Console Area */}
-            <div className="h-[40%] flex flex-col shrink-0 border-b border-white/10 bg-black/60">
-              <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between bg-neutral-900/80">
+            <div className="h-[40%] flex flex-col shrink-0 border-b border-[var(--glass-border)] bg-[var(--background)]">
+              <div className="px-4 py-2 border-b border-[var(--glass-border)] flex items-center justify-between bg-[var(--surface)]">
                 <div className="flex items-center gap-2">
-                  <FiTerminal className="text-neutral-400" />
-                  <span className="text-sm font-semibold text-neutral-200">Simulation Console</span>
+                  <FiTerminal className="text-[var(--text-muted)]" />
+                  <span className="text-sm font-semibold text-[var(--text)]">Simulation Console</span>
                 </div>
                 <button 
                   onClick={() => setLogs([{ msg: `[${new Date().toLocaleTimeString()}] Console cleared.`, type: 'info' }])}
-                  className="text-neutral-500 hover:text-white transition-colors"
+                  className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
                   title="Clear Console"
                 >
                   <GrClearOption size={14} />
@@ -244,34 +314,46 @@ const CornerNav = () => {
               </div>
               <div 
                 ref={consoleRef}
-                className="flex-1 overflow-y-auto p-4 font-mono text-xs flex flex-col gap-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10"
+                className="flex-1 overflow-y-auto p-4 font-mono text-xs flex flex-col gap-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--glass-border)]"
               >
                 {logs.map((log, i) => (
                   <div key={i} className={`break-words ${
-                    log.type === 'info' ? 'text-neutral-400' : 
-                    log.type === 'exec' ? 'text-blue-400' : 
-                    'text-emerald-400'
+                    log.type === 'info' ? 'text-[var(--text-muted)]' : 
+                    log.type === 'exec' ? 'text-blue-500 dark:text-blue-400' : 
+                    'text-[var(--primary)]'
                   }`}>{log.msg}</div>
                 ))}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 pt-6 pb-8 flex flex-col gap-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-neutral-700 hover:[&::-webkit-scrollbar-thumb]:bg-neutral-600">
+            <div className="flex-1 overflow-y-auto p-6 pt-6 pb-8 flex flex-col gap-8 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--glass-border)] hover:[&::-webkit-scrollbar-thumb]:bg-[var(--text-muted)]">
               
               <div>
-                <h3 className="text-xl font-bold tracking-tight text-white mb-1">Available Scenarios</h3>
-                <p className="text-sm text-neutral-400">Select a failure scenario to inject into the active cluster.</p>
+                <h3 className="text-xl font-bold tracking-tight text-[var(--text)] mb-1">Available Scenarios</h3>
+                <p className="text-sm text-[var(--text-muted)]">Select a failure scenario to inject into the active cluster.</p>
               </div>
 
               {/* Group 1: Node Failures */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-2">
-                  <FiServer className="text-emerald-500" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3 flex items-center gap-2">
+                  <FiServer className="text-[var(--primary)]" />
                   Node Failures
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <TooltipButton align="left" position="bottom" onClick={runSimulation} label="Kill Leader Node" info="Instantly terminates the current Raft leader to observe election mechanics." />
                   <TooltipButton align="right" position="bottom" onClick={runSimulation} label="Kill Random Follower" info="Terminates a random non-leader node to test replication resilience." />
+                  
+                  <TooltipSelectButton 
+                    align="left" 
+                    position="bottom" 
+                    onClick={(l, i) => runSimulation(l, i, selectedNodeToKill)} 
+                    label="Kill Node" 
+                    info="Terminates the selected node from the dropdown." 
+                    options={[1,2,3,4,5].map(n => ({label: `node-${n}`, value: `node-${n}`}))}
+                    selectedValue={selectedNodeToKill}
+                    onSelectChange={setSelectedNodeToKill}
+                  />
+
                   <TooltipButton align="left" position="bottom" onClick={runSimulation} label="CPU/Memory Spike" info="Simulates a resource exhaustion event on a node to test timeouts and degradation." />
                   <TooltipButton align="right" position="bottom" onClick={runSimulation} label="Graceful Restart" info="Safely restarts a node to test state recovery from the WAL." />
                 </div>
@@ -279,8 +361,8 @@ const CornerNav = () => {
 
               {/* Group 2: Network & Connectivity */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-2">
-                  <FiWifi className="text-emerald-500" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3 flex items-center gap-2">
+                  <FiWifi className="text-[var(--primary)]" />
                   Network Issues
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -290,8 +372,8 @@ const CornerNav = () => {
 
               {/* Group 3: Database & Storage */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-2">
-                  <FiHardDrive className="text-emerald-500" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3 flex items-center gap-2">
+                  <FiHardDrive className="text-[var(--primary)]" />
                   Database & Storage
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -301,8 +383,8 @@ const CornerNav = () => {
 
               {/* Group 4: Consensus & Replication */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-2">
-                  <FiDatabase className="text-emerald-500" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3 flex items-center gap-2">
+                  <FiDatabase className="text-[var(--primary)]" />
                   Consensus & Replication
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -314,8 +396,8 @@ const CornerNav = () => {
 
               {/* Group 5: Application & Load */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-3 flex items-center gap-2">
-                  <FiDollarSign className="text-emerald-500" />
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] mb-3 flex items-center gap-2">
+                  <FiDollarSign className="text-[var(--primary)]" />
                   Application & Load
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -331,7 +413,7 @@ const CornerNav = () => {
               exit={{ opacity: 0 }}
               transition={{ delay: 0.1 }}
               onClick={() => setIsOpen(false)}
-              className="absolute right-4 top-5 p-2 text-neutral-400 hover:text-white transition-colors flex items-center justify-center"
+              className="absolute right-4 top-5 p-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors flex items-center justify-center"
             >
               <FiX size={36} className="font-light" />
             </motion.button>
@@ -355,6 +437,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 const Sidebar = () => {
   const [open, setOpen] = useState(true);
   const location = useLocation();
+  const { unreadCount } = useAlerts();
 
   return (
     <motion.nav
@@ -394,6 +477,21 @@ const Sidebar = () => {
           path="/database"
           currentPath={location.pathname}
           open={open}
+        />
+        <Option
+          Icon={FiMap}
+          title="Architecture"
+          path="/architecture"
+          currentPath={location.pathname}
+          open={open}
+        />
+        <Option
+          Icon={AiOutlineAlert}
+          title="Alerts"
+          path="/alerts"
+          currentPath={location.pathname}
+          open={open}
+          notifs={unreadCount > 0 ? unreadCount : undefined}
         />
         <Option
           Icon={FiSettings}
@@ -452,6 +550,9 @@ const Option = ({ Icon, title, path, currentPath, open, notifs }: OptionProps) =
         className={`shrink-0 place-content-center text-2xl relative z-10 flex items-center justify-center ${selected ? "text-white" : ""}`}
       >
         <Icon />
+        {notifs && (
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--surface)] shadow-sm"></span>
+        )}
       </motion.div>
       {open && (
         <motion.span
@@ -459,24 +560,14 @@ const Option = ({ Icon, title, path, currentPath, open, notifs }: OptionProps) =
           initial={{ opacity: 0, width: 0 }}
           animate={{ opacity: 1, width: "auto" }}
           transition={{ delay: 0.125 }}
-          className={`text-base font-google-code font-bold whitespace-nowrap ml-4 relative z-10 ${selected ? "text-white" : ""}`}
+          className={`text-base font-google-code font-bold whitespace-nowrap ml-4 relative z-10 flex items-center gap-2.5 ${selected ? "text-white" : ""}`}
         >
+          {notifs && (
+            <span className="flex h-5 min-w-[20px] items-center justify-center rounded bg-red-500 text-[11px] font-bold text-white px-1.5 shadow-sm">
+              {notifs}
+            </span>
+          )}
           {title}
-        </motion.span>
-      )}
-
-      {notifs && open && (
-        <motion.span
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-          }}
-          style={{ y: "-50%" }}
-          transition={{ delay: 0.5 }}
-          className="absolute right-2 top-1/2 h-4 w-4 flex items-center justify-center rounded bg-[var(--error)] text-[10px] text-white z-10"
-        >
-          {notifs}
         </motion.span>
       )}
     </motion.button>
@@ -554,11 +645,30 @@ const ToggleClose = ({ open, setOpen }: { open: boolean, setOpen: React.Dispatch
 
 const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const { unreadCount, categories, markAsRead } = useAlerts();
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+
+  // Flatten all active instances across all rules for the side panel feed
+  const activeInstances = React.useMemo(() => {
+      const instances: any[] = [];
+      categories.forEach(cat => {
+          cat.rules.forEach(rule => {
+              rule.instances.forEach(inst => {
+                  instances.push({ ...inst, ruleName: rule.name });
+              });
+          });
+      });
+      // Sort by timestamp descending
+      return instances.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [categories]);
+
   const getTitle = () => {
     if (location.pathname === "/") return "Dashboard";
     if (location.pathname === "/payments") return "Payments Hub";
     if (location.pathname === "/nodes") return "Nodes";
     if (location.pathname === "/database") return "Database Cluster";
+    if (location.pathname === "/architecture") return "System Architecture";
+    if (location.pathname === "/alerts") return "System Alerts";
     if (location.pathname === "/settings") return "Settings";
     return "Settle System";
   };
@@ -574,6 +684,15 @@ const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) =
         </div>
         
         <div className="flex items-center gap-5 transition-colors duration-300">
+          <div className="relative cursor-pointer hover:bg-[var(--surface-solid)] p-2 rounded-full transition-colors" onClick={() => { setIsAlertsOpen(!isAlertsOpen); markAsRead(); }}>
+            <AiOutlineAlert size={24} className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white px-1 shadow-lg border border-[var(--surface)]">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          <div className="h-8 w-[1px] bg-[var(--glass-border)]"></div>
           <img src={LogoWordGreen} alt="Settle Wordmark" className="h-10 object-contain" />
           <div className="h-8 w-[1px] bg-[var(--glass-border)]"></div>
           <div className="flex flex-col justify-center">
@@ -586,6 +705,38 @@ const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) =
           </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {isAlertsOpen && (
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="absolute top-0 right-0 w-[400px] h-full bg-[var(--surface-solid)] border-l border-[var(--glass-border)] flex flex-col z-50 shadow-2xl"
+          >
+            <div className="flex justify-between items-center p-4 border-b border-[var(--glass-border)] bg-[var(--surface)]">
+              <span className="font-bold flex items-center gap-2 tracking-tight text-lg"><AiOutlineAlert className="text-[var(--primary)]"/> Active Alerts</span>
+              <button onClick={() => setIsAlertsOpen(false)} className="hover:text-[var(--primary)] transition-colors"><FiX size={20}/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {activeInstances.length === 0 ? (
+                <div className="text-center text-[var(--text-muted)] mt-10">No active alerts.</div>
+              ) : (
+                activeInstances.slice(0, 50).map((alert: any) => (
+                  <div key={alert.id} className="p-3 bg-[var(--surface)] border border-[var(--glass-border)] text-sm">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`font-bold ${alert.severity === 'error' || alert.severity === 'critical' ? 'text-red-400' : alert.severity === 'warning' ? 'text-orange-400' : 'text-yellow-400'}`}>{alert.ruleName}</span>
+                      <span className="text-[10px] text-[var(--text-muted)]">{formatTime(alert.timestamp)}</span>
+                    </div>
+                    <p className="text-[var(--text-muted)] text-xs">{alert.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="flex-1 overflow-auto p-8 relative">
         {children}

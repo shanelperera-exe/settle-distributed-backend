@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { US, GB, EU } from 'country-flag-icons/react/1x1';
-import { FiActivity, FiCheckCircle, FiXCircle, FiClock, FiChevronDown, FiChevronRight, FiLoader } from 'react-icons/fi';
+import { FiActivity, FiCheckCircle, FiXCircle, FiClock, FiChevronDown, FiChevronRight, FiLoader, FiDollarSign } from 'react-icons/fi';
 import { MdInsights } from "react-icons/md";
 import { TbLocationDollar } from "react-icons/tb";
 import { LuHistory, LuDollarSign, LuEuro, LuPoundSterling, LuFilter } from "react-icons/lu";
@@ -143,15 +143,15 @@ export default function Payments() {
   const [historyPage, setHistoryPage] = useState(1);
   const itemsPerPage = 10;
   const [consoleLogs, setConsoleLogs] = useState<{time: string, text: string, color: string}[]>([
-    { time: new Date().toLocaleTimeString([], {hour12: false}), text: 'Ready! Your webhook endpoint is receiving events.', color: 'text-black dark:text-gray-400' }
+    { time: new Date().toLocaleTimeString([], {hour12: false}), text: 'Ready! Your webhook endpoint is receiving events.', color: 'text-[var(--text-muted)]' }
   ]);
   
-  const addLog = (text: string, color: string = 'text-black dark:text-gray-200') => {
+  const addLog = (text: string, color: string = 'text-[var(--text)]') => {
     setConsoleLogs(prev => [...prev, { time: new Date().toLocaleTimeString([], {hour12: false}), text, color }]);
   };
 
   const clearConsole = () => {
-    setConsoleLogs([{ time: new Date().toLocaleTimeString([], {hour12: false}), text: 'Console cleared.', color: 'text-black dark:text-gray-400' }]);
+    setConsoleLogs([{ time: new Date().toLocaleTimeString([], {hour12: false}), text: 'Console cleared.', color: 'text-[var(--text-muted)]' }]);
   };
 
   useEffect(() => {
@@ -279,16 +279,16 @@ export default function Payments() {
     
     const idempotencyKey = generateId();
     
-    addLog(`--> payment_intent.created [${idempotencyKey.substring(0, 8)}]`, 'text-[#0570de] dark:text-blue-400');
-    addLog(`Creating payment of ${amount} ${currency} for ${senderId}...`, 'text-black dark:text-gray-400');
+    addLog(`--> payment_intent.created [${idempotencyKey.substring(0, 8)}]`, 'text-blue-500');
+    addLog(`Creating payment of ${amount} ${currency} for ${senderId}...`, 'text-[var(--text-muted)]');
 
     if (latency && Number(latency) > 0) {
-      addLog(`Injecting artificial latency: ${latency}ms...`, 'text-yellow-600 dark:text-yellow-400');
+      addLog(`Injecting artificial latency: ${latency}ms...`, 'text-amber-500');
       await new Promise(r => setTimeout(r, Number(latency)));
     }
     
     if (metadata && metadata !== '{}' && metadata !== '{\n  "source": "settle_ui_simulation"\n}') {
-      addLog(`Injecting metadata payload...`, 'text-black dark:text-gray-400');
+      addLog(`Injecting metadata payload...`, 'text-[var(--text-muted)]');
     }
 
     try {
@@ -310,20 +310,20 @@ export default function Payments() {
 
       if (res.ok) {
         const data = await res.json();
-        addLog(`<--  [200 OK] payment_intent.succeeded [${data.payment_id}]`, 'text-green-600 dark:text-green-400');
-        addLog(`Backend processed payment successfully. Idempotency Key: ${idempotencyKey}`, 'text-black dark:text-gray-400');
+        addLog(`<--  [200 OK] payment_intent.succeeded [${data.payment_id}]`, 'text-green-500');
+        addLog(`Backend processed payment successfully. Idempotency Key: ${idempotencyKey}`, 'text-[var(--text-muted)]');
         setResult({ status: 'success', message: `Payment dispatched successfully! ID: ${data.payment_id}` });
         fetchPayments(); // Refresh table immediately
         setTimeout(() => setResult(null), 3000);
       } else {
         const err = await res.json();
         const errorMsg = typeof err.detail === 'string' ? err.detail : (err.detail ? JSON.stringify(err.detail) : 'Unknown error');
-        addLog(`<--  [${res.status} Error] payment_intent.failed`, 'text-red-600 dark:text-red-400');
-        addLog(`Backend error: ${errorMsg}`, 'text-red-600 dark:text-red-400');
+        addLog(`<--  [${res.status} Error] payment_intent.failed`, 'text-red-500');
+        addLog(`Backend error: ${errorMsg}`, 'text-red-500');
         setResult({ status: 'error', message: errorMsg || 'Failed to dispatch payment' });
       }
     } catch (e) {
-      addLog(`<--  [Network Error] connection failed`, 'text-red-600 dark:text-red-400');
+      addLog(`<--  [Network Error] connection failed`, 'text-red-500');
       setResult({ status: 'error', message: 'Network error connecting to cluster.' });
     } finally {
       setLoading(false);
@@ -384,6 +384,21 @@ export default function Payments() {
 
   return (
     <div className="space-y-8 pb-12">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
+        <div className="text-[var(--primary)]">
+          <FiDollarSign size={48} />
+        </div>
+        <div>
+          <h1 className="text-3xl font-light text-[var(--text)] tracking-tight">Payments Hub</h1>
+          <p className="text-[var(--text-muted)] text-sm font-medium mt-1 uppercase tracking-widest">Payment processing and simulation</p>
+        </div>
+      </motion.div>
+
       {/* Tabs Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <SlideTabs activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -500,7 +515,7 @@ export default function Payments() {
               </div>
               
               <div className="flex-1 min-h-0 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                   <AreaChart data={volumeData.timeseries} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
@@ -543,7 +558,7 @@ export default function Payments() {
               <h3 className="text-xl font-space font-bold mb-6 flex items-center gap-2">
                 <FiActivity className="text-[var(--primary)]" /> Live Payment Volume
               </h3>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <AreaChart data={timeSeries} margin={{ top: 30, right: 30, left: 40, bottom: 20 }}>
                   <defs>
                     <linearGradient id="colorTps" x1="0" y1="0" x2="0" y2="1">
@@ -847,15 +862,15 @@ export default function Payments() {
                   </div>
 
                   {result && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-4 rounded-none border flex items-center gap-3 shadow-none ${result.status === 'success' ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800/30' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800/30'}`}>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`p-4 rounded-none border flex items-center gap-3 shadow-none ${result.status === 'success' ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
                       <div className={`shrink-0 ${result.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
                         {result.status === 'success' ? <FiCheckCircle size={20} /> : <FiXCircle size={20} />}
                       </div>
                       <div>
-                        <h4 className={`text-sm font-bold ${result.status === 'success' ? 'text-green-800 dark:text-green-400' : 'text-red-800 dark:text-red-400'}`}>
+                        <h4 className={`text-sm font-bold ${result.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
                           {result.status === 'success' ? 'Payment Successful' : 'Payment Failed'}
                         </h4>
-                        <p className={`text-xs font-space mt-0.5 ${result.status === 'success' ? 'text-green-600 dark:text-green-500/80' : 'text-red-600 dark:text-red-500/80'}`}>
+                        <p className={`text-xs font-space mt-0.5 ${result.status === 'success' ? 'text-green-500/80' : 'text-red-500/80'}`}>
                           {result.message}
                         </p>
                       </div>
@@ -881,16 +896,16 @@ export default function Payments() {
                 </button>
               </div>
             ) : (
-              <div className="bg-white dark:bg-[#1a1a1a] p-0 rounded-none shadow-none flex flex-col md:flex-row max-w-3xl border border-gray-200 dark:border-gray-800 overflow-hidden font-sans">
+              <div className="bg-[var(--surface)] p-0 rounded-none shadow-none flex flex-col md:flex-row max-w-3xl border border-[var(--glass-border)] overflow-hidden font-sans">
                 {/* Stripe Checkout Mock - Left Side */}
-                <div className="bg-[#f6f9fc] dark:bg-[#111111] w-full md:w-[40%] p-8 border-r border-gray-200 dark:border-gray-800 flex flex-col">
+                <div className="bg-[var(--background)] w-full md:w-[40%] p-8 border-r border-[var(--glass-border)] flex flex-col">
                   <div className="flex items-center gap-2 mb-8">
                     <div className="w-8 h-8 bg-blue-600 rounded-none flex items-center justify-center text-white font-bold">S</div>
-                    <span className="font-bold text-gray-800 dark:text-gray-200">Settle Test Inc.</span>
+                    <span className="font-bold text-[var(--text)]">Settle Test Inc.</span>
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400 text-sm mb-2">Custom Payment</div>
-                  <div className="flex items-center border-b-2 border-blue-600 pb-1 mb-8 mt-4 w-max">
-                    <span className="text-4xl font-bold text-gray-900 dark:text-white mr-2">
+                  <div className="text-[var(--text-muted)] text-sm mb-2">Custom Payment</div>
+                  <div className="flex items-center border-b-2 border-[var(--glass-border)] focus-within:border-[var(--primary)] pb-1 mb-8 mt-4 w-max transition-colors">
+                    <span className="text-4xl font-bold text-[var(--text)] mr-2">
                       {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '£'}
                     </span>
                     <input 
@@ -898,12 +913,12 @@ export default function Payments() {
                       min="0"
                       value={amount} 
                       onChange={(e) => setAmount(Number(e.target.value) < 0 ? '0' : e.target.value)} 
-                      className="text-4xl font-bold text-gray-900 dark:text-white w-32 outline-none bg-transparent"
+                      className="text-4xl font-bold text-[var(--text)] w-32 outline-none bg-transparent"
                     />
                     <select 
                       value={currency} 
                       onChange={(e) => setCurrency(e.target.value)} 
-                      className="ml-2 text-xl font-medium text-gray-500 dark:text-gray-400 outline-none bg-transparent cursor-pointer"
+                      className="ml-2 text-xl font-medium text-[var(--text-muted)] outline-none bg-transparent cursor-pointer"
                     >
                       <option value="USD">USD</option>
                       <option value="EUR">EUR</option>
@@ -911,56 +926,56 @@ export default function Payments() {
                     </select>
                   </div>
                   
-                  <div className="mt-auto pt-8 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                  <div className="mt-auto pt-8 flex items-center gap-2 text-xs text-[var(--text-muted)] font-medium">
                     <span>Powered by</span>
-                    <span className="font-bold text-gray-800 dark:text-gray-200 text-sm tracking-tighter">stripe</span>
+                    <span className="font-bold text-[var(--text)] text-sm tracking-tighter">stripe</span>
                   </div>
                 </div>
 
                 {/* Stripe Checkout Mock - Right Side */}
-                <div className="bg-white dark:bg-[#1a1a1a] w-full md:w-[60%] p-8">
+                <div className="bg-[var(--surface)] w-full md:w-[60%] p-8">
                   <div className="mb-6">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Contact</h3>
+                    <h3 className="text-lg font-medium text-[var(--text)] mb-4">Contact</h3>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email address</label>
-                        <input type="email" value={senderId} onChange={e => setSenderId(e.target.value)} className="w-full bg-white dark:bg-[#111111] border border-gray-300 dark:border-gray-700 rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" placeholder="you@example.com" />
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Email address</label>
+                        <input type="email" value={senderId} onChange={e => setSenderId(e.target.value)} className="w-full bg-[var(--background)] border border-[var(--glass-border)] rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-[var(--text)] placeholder-[var(--text-muted)]" placeholder="you@example.com" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Receiver ID</label>
-                        <input type="text" value={receiverId} onChange={e => setReceiverId(e.target.value)} className="w-full bg-white dark:bg-[#111111] border border-gray-300 dark:border-gray-700 rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" placeholder="Destination account" />
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Receiver ID</label>
+                        <input type="text" value={receiverId} onChange={e => setReceiverId(e.target.value)} className="w-full bg-[var(--background)] border border-[var(--glass-border)] rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-[var(--text)] placeholder-[var(--text-muted)]" placeholder="Destination account" />
                       </div>
                     </div>
                   </div>
 
                   <div className="mb-6">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Payment</h3>
+                    <h3 className="text-lg font-medium text-[var(--text)] mb-4">Payment</h3>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Card information</label>
-                        <div className="border border-gray-300 dark:border-gray-700 rounded-none shadow-none overflow-hidden bg-white dark:bg-[#111111] focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500 transition-shadow">
-                          <div className="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center bg-white dark:bg-[#111111]">
-                            <input type="text" placeholder="Card number" className="w-full outline-none bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Card information</label>
+                        <div className="border border-[var(--glass-border)] rounded-none shadow-none overflow-hidden bg-[var(--background)] focus-within:ring-1 focus-within:ring-[var(--primary)] focus-within:border-[var(--primary)] transition-shadow">
+                          <div className="px-3 py-2.5 border-b border-[var(--glass-border)] flex items-center bg-[var(--background)]">
+                            <input type="text" placeholder="Card number" className="w-full outline-none bg-transparent text-[var(--text)] placeholder-[var(--text-muted)]" />
                             <div className="flex gap-1">
                               <img src="https://raw.githubusercontent.com/datatrans/payment-logos/master/assets/cards/visa-alt.svg?sanitize=true" className="h-4" alt="Visa" />
                               <img src="https://raw.githubusercontent.com/datatrans/payment-logos/master/assets/cards/mastercard.svg?sanitize=true" className="h-4" alt="Mastercard" />
                             </div>
                           </div>
-                          <div className="flex bg-white dark:bg-[#111111]">
-                            <input type="text" placeholder="MM / YY" className="w-1/2 px-3 py-2.5 outline-none bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border-r border-gray-200 dark:border-gray-700" />
-                            <input type="text" placeholder="CVC" className="w-1/2 px-3 py-2.5 outline-none bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                          <div className="flex bg-[var(--background)]">
+                            <input type="text" placeholder="MM / YY" className="w-1/2 px-3 py-2.5 outline-none bg-transparent text-[var(--text)] placeholder-[var(--text-muted)] border-r border-[var(--glass-border)]" />
+                            <input type="text" placeholder="CVC" className="w-1/2 px-3 py-2.5 outline-none bg-transparent text-[var(--text)] placeholder-[var(--text-muted)]" />
                           </div>
                         </div>
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name on card</label>
-                        <input type="text" className="w-full bg-white dark:bg-[#111111] border border-gray-300 dark:border-gray-700 rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Name on card</label>
+                        <input type="text" className="w-full bg-[var(--background)] border border-[var(--glass-border)] rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-[var(--text)] placeholder-[var(--text-muted)]" />
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Country or region</label>
-                        <select className="w-full bg-white dark:bg-[#111111] border border-gray-300 dark:border-gray-700 rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-white">
+                        <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Country or region</label>
+                        <select className="w-full bg-[var(--background)] border border-[var(--glass-border)] rounded-none px-3 py-2.5 shadow-none outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] text-[var(--text)]">
                           <option>United States</option>
                           <option>United Kingdom</option>
                           <option>European Union</option>
@@ -970,7 +985,7 @@ export default function Payments() {
                   </div>
 
                   {result && (
-                    <div className={`p-4 rounded-none mb-6 border ${result.status === 'success' ? 'bg-green-50 dark:bg-green-900/10 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800/30' : 'bg-red-50 dark:bg-red-900/10 text-red-800 dark:text-red-400 border-red-200 dark:border-red-800/30'}`}>
+                    <div className={`p-4 rounded-none mb-6 border ${result.status === 'success' ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
                       <p className="text-sm font-medium">{result.message}</p>
                     </div>
                   )}
@@ -978,7 +993,7 @@ export default function Payments() {
                   <button 
                     onClick={simulatePayment}
                     disabled={loading}
-                    className="w-full bg-[#0570de] hover:bg-[#0058b8] text-white font-medium py-3.5 rounded-none transition-colors flex items-center justify-center shadow-none disabled:opacity-50 text-lg"
+                    className="w-full bg-[#635BFF] hover:bg-[#4d45d6] text-white font-medium py-3.5 rounded-none transition-colors flex items-center justify-center shadow-none disabled:opacity-50 text-lg"
                   >
                     {loading ? (
                       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
@@ -1177,19 +1192,36 @@ export default function Payments() {
                       Prev
                     </button>
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <button
-                          key={page}
-                          onClick={() => setHistoryPage(page)}
-                          className={`w-7 h-7 flex items-center justify-center text-xs font-bold border border-[var(--glass-border)] rounded-none transition-colors ${
-                            historyPage === page 
-                              ? 'bg-[var(--primary)] text-white border-[var(--primary)]' 
-                              : 'bg-[var(--surface-solid)] text-[var(--text-muted)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ))}
+                      {(() => {
+                        let pages = [];
+                        if (totalPages <= 7) {
+                          pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+                        } else if (historyPage <= 4) {
+                          pages = [1, 2, 3, 4, 5, '...', totalPages];
+                        } else if (historyPage >= totalPages - 3) {
+                          pages = [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+                        } else {
+                          pages = [1, '...', historyPage - 1, historyPage, historyPage + 1, '...', totalPages];
+                        }
+                        
+                        return pages.map((page, idx) => (
+                          page === '...' ? (
+                            <span key={`ellipsis-${idx}`} className="px-1 text-[var(--text-muted)] tracking-widest font-bold">...</span>
+                          ) : (
+                            <button
+                              key={page}
+                              onClick={() => setHistoryPage(page as number)}
+                              className={`w-7 h-7 flex items-center justify-center text-xs font-bold border border-[var(--glass-border)] rounded-none transition-colors ${
+                                historyPage === page 
+                                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]' 
+                                  : 'bg-[var(--surface-solid)] text-[var(--text-muted)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        ));
+                      })()}
                     </div>
                     <button 
                       onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}

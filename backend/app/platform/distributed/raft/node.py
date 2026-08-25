@@ -10,7 +10,7 @@ from app.platform.distributed.raft.log import RaftLog, LogEntry
 from app.platform.distributed.raft.election import ElectionManager
 from app.platform.distributed.zookeeper.registry import ZKRegistry
 from app.platform.distributed.zookeeper.watcher import ZKWatcher
-from app.platform.distributed.raft.persistence import save_raft_state
+from app.platform.distributed.raft.persistence import save_raft_state, append_raft_log_entry
 from app.platform.observability.metrics import (
     raft_leader_changes_total,
     raft_current_term,
@@ -119,6 +119,9 @@ class RaftNode:
 
     def _resolve_and_update_peers(self, peers: List[str]):
         """Resolve hostnames to IPv4 IPs synchronously and update peer lists."""
+        old_peers = set(self.active_peers)
+        new_peers = set(peers)
+        
         self.active_peers = peers
         for p in peers:
             try:
@@ -127,6 +130,8 @@ class RaftNode:
             except Exception as e:
                 logger.error(f"[{self.node_id}] DNS resolution failed for {p}: {e}")
         logger.info(f"[{self.node_id}] Peers updated: {self.active_peers} => IPs: {self.peer_ips}")
+
+
 
     def set_apply_callback(self, callback):
         self.apply_callback = callback
@@ -146,12 +151,14 @@ class RaftNode:
 
         async with self.lock:
             entry = LogEntry(term=self.state.current_term, command=command)
-            await self.log.append(self.node_id, entry)
-            target_index = self.log.get_last_log_index()
+            target_index = self.log.append_memory(entry)
             # Track pending replication queue
             replication_queue_size.labels(node_id=self.node_id).set(
                 self.log.get_last_log_index() - self.state.commit_index
             )
+
+        # Write to DB outside the lock to prevent blocking the event loop
+        await append_raft_log_entry(self.node_id, target_index, entry.term, entry.command)
 
         logger.info(f"[{self.node_id}] Command submitted at index {target_index}. Waiting for quorum commit...")
 
@@ -391,6 +398,9 @@ class RaftNode:
         raft_leader_changes_total.labels(node_id=self.node_id).inc()
         self._update_role_metric()
         logger.info(f"[{self.node_id}] Became LEADER for term {self.state.current_term}.")
+        
+        from app.platform.observability.alerts import alert_manager
+        alert_manager.set_alert_state("settle_infrastructure", "LeaderNodeDown", "cluster", False)
 
     # -------------------------------------------------------------------------
     # Leader Loop
@@ -559,14 +569,22 @@ class RaftNode:
                self.log.get_term_at(prev_log_index) != prev_log_term:
                 return {"term": self.state.current_term, "success": False}
 
-            # Truncate conflicting entries and append new ones.
+            # Truncate conflicting entries and append new ones in memory.
             log_entries = [LogEntry.from_dict(e) for e in entries]
+            db_entries = []
             if log_entries:
-                await self.log.truncate_and_append(self.node_id, prev_log_index + 1, log_entries)
+                db_entries = self.log.truncate_and_append_memory(prev_log_index + 1, log_entries)
 
-            # Update commit index.
-            if leader_commit > self.state.commit_index:
-                self.state.commit_index = min(leader_commit, self.log.get_last_log_index())
+        # Write to DB outside the lock to prevent blocking the event loop
+        if db_entries:
+            from app.platform.distributed.raft.persistence import truncate_and_append_raft_log
+            await truncate_and_append_raft_log(self.node_id, prev_log_index + 1, db_entries)
+
+        async with self.lock:
+            # Update commit index only after persisting to disk (Write-Ahead Log)
+            if self.state.role == NodeState.FOLLOWER and self.state.leader_id == leader_id:
+                if leader_commit > self.state.commit_index:
+                    self.state.commit_index = min(leader_commit, self.log.get_last_log_index())
 
             return {"term": self.state.current_term, "success": True}
 
