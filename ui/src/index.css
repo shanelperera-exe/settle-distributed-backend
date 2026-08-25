@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Codec Pro';
+  src: url('./assets/fonts/CodecPro-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Codec Pro';
+  src: url('./assets/fonts/CodecPro-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Codec Pro';
+  src: url('./assets/fonts/CodecPro-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
 
 @layer base {
   :root {

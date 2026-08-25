@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiTerminal, FiShield, FiCpu, FiAlertTriangle, FiClock, FiActivity } from 'react-icons/fi';
+import { FiCpu, FiAlertTriangle, FiActivity } from 'react-icons/fi';
 import { MdOutlineSecurity } from "react-icons/md";
+import { LuLogs } from "react-icons/lu";
 
 interface AuditLog {
   timestamp?: string;
@@ -65,13 +66,13 @@ export default function AuditLogs() {
         className="flex flex-col md:flex-row md:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <div className="text-[var(--text)]">
-            <FiTerminal size={48} />
+          <div className="text-[var(--primary)]">
+            <LuLogs size={48} />
           </div>
           <div>
             <h1 className="text-3xl font-light text-[var(--text)] tracking-tight">Audit Logs</h1>
             <p className="text-[var(--text-muted)] text-sm font-medium mt-1 uppercase tracking-widest flex items-center gap-2">
-              <FiShield className="text-[var(--primary)]" /> Immutable System Ledger
+              Immutable System Ledger
             </p>
           </div>
         </div>

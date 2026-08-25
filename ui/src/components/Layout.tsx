@@ -11,13 +11,13 @@ import {
   FiHardDrive,
   FiDollarSign,
   FiTerminal,
-  FiMap
+  FiMap,
+  FiAlertOctagon
 } from "react-icons/fi";
 import { LuLayoutDashboard, LuLogs } from "react-icons/lu";
 import { FaCircleNodes } from "react-icons/fa6";
 import { GrTest, GrClearOption } from "react-icons/gr";
 import { motion, AnimatePresence } from "framer-motion";
-import { AiOutlineAlert } from "react-icons/ai";
 import { useAlerts } from "../contexts/AlertContext";
 import type { Alert } from "../contexts/AlertContext";
 import LogoImg from "../assets/logos/settle_logo_primary.svg";
@@ -489,7 +489,7 @@ const Sidebar = () => {
           open={open}
         />
         <Option
-          Icon={AiOutlineAlert}
+          Icon={FiAlertOctagon}
           title="Alerts"
           path="/alerts"
           currentPath={location.pathname}
@@ -533,9 +533,9 @@ const LogoutOption = ({ open }: { open: boolean }) => {
     <motion.button
       layout
       onClick={handleLogout}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      className={`relative flex h-12 items-center rounded-none transition-colors mb-2 w-full justify-start hover:bg-red-500/10 text-red-400 hover:text-red-300 ${
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className={`relative flex h-12 items-center rounded-none transition-colors mb-2 w-full justify-start text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-500 ${
         open ? 'px-4' : 'justify-center'
       }`}
     >
@@ -736,7 +736,7 @@ const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) =
         
         <div className="flex items-center gap-5 transition-colors duration-300">
           <div className="relative cursor-pointer hover:bg-[var(--surface-solid)] p-2 rounded-full transition-colors" onClick={() => { setIsAlertsOpen(!isAlertsOpen); markAsRead(); }}>
-            <AiOutlineAlert size={24} className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors" />
+            <FiAlertOctagon size={24} className="text-[var(--text-muted)] hover:text-[var(--text)] transition-colors" />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white px-1 shadow-lg border border-[var(--surface)]">
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -767,7 +767,7 @@ const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) =
             className="absolute top-0 right-0 w-[400px] h-full bg-[var(--surface-solid)] border-l border-[var(--glass-border)] flex flex-col z-50 shadow-2xl"
           >
             <div className="flex justify-between items-center p-4 border-b border-[var(--glass-border)] bg-[var(--surface)]">
-              <span className="font-bold flex items-center gap-2 tracking-tight text-lg"><AiOutlineAlert className="text-[var(--primary)]"/> Active Alerts</span>
+              <span className="font-bold flex items-center gap-2 tracking-tight text-lg"><FiAlertOctagon className="text-[var(--primary)]"/> Active Alerts</span>
               <button onClick={() => setIsAlertsOpen(false)} className="hover:text-[var(--primary)] transition-colors"><FiX size={20}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
