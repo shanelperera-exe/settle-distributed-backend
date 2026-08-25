@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import health, payments, clock, webhooks, raft, raft_health, metrics_endpoint, database, chaos, alerts, auth
+from app.api.v1.endpoints import health, payments, clock, webhooks, raft, raft_health, metrics_endpoint, database, chaos, alerts, auth, audit
 from app.api.dependencies.auth import verify_api_key, verify_raft_token
 from app.api.deps import get_admin_user, get_current_user
 
@@ -15,3 +15,4 @@ api_router.include_router(metrics_endpoint.router, tags=["Monitoring"])
 api_router.include_router(database.router, prefix="/database", tags=["Database Metrics"], dependencies=[Depends(get_current_user)])
 api_router.include_router(chaos.router, prefix="/chaos", tags=["Chaos Engineering"], dependencies=[Depends(get_admin_user)])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["System Alerts"], dependencies=[Depends(get_current_user)])
+api_router.include_router(audit.router, prefix="/audit", tags=["Audit Logs"], dependencies=[Depends(get_admin_user)])

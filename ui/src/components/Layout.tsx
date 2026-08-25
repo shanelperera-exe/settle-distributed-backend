@@ -13,7 +13,7 @@ import {
   FiTerminal,
   FiMap
 } from "react-icons/fi";
-import { LuLayoutDashboard } from "react-icons/lu";
+import { LuLayoutDashboard, LuLogs } from "react-icons/lu";
 import { FaCircleNodes } from "react-icons/fa6";
 import { GrTest, GrClearOption } from "react-icons/gr";
 import { motion, AnimatePresence } from "framer-motion";
@@ -497,6 +497,13 @@ const Sidebar = () => {
           notifs={unreadCount > 0 ? unreadCount : undefined}
         />
         <Option
+          Icon={LuLogs}
+          title="Audit Logs"
+          path="/audit"
+          currentPath={location.pathname}
+          open={open}
+        />
+        <Option
           Icon={FiSettings}
           title="Settings"
           path="/settings"
@@ -712,6 +719,7 @@ const ExampleContent: React.FC<{ children: React.ReactNode }> = ({ children }) =
     if (location.pathname === "/database") return "Database Cluster";
     if (location.pathname === "/architecture") return "System Architecture";
     if (location.pathname === "/alerts") return "System Alerts";
+    if (location.pathname === "/audit") return "Audit Logs";
     if (location.pathname === "/settings") return "Settings";
     return "Settle System";
   };

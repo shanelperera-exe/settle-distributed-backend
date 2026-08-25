@@ -4,6 +4,7 @@ import socket
 import httpx
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status, Query
+from typing import Dict, Any, List, Optional
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
@@ -212,23 +213,65 @@ async def process_payment(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/", response_model=List[Dict[str, Any]])
-async def list_payments(request: Request, db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+async def list_payments(
+    request: Request, 
+    db: Session = Depends(get_db), 
+    skip: int = 0, 
+    limit: int = 100,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    amount: Optional[float] = Query(None, description="Exact amount"),
+    customer_id: Optional[str] = Query(None, description="Sender or Receiver ID"),
+    intent_id: Optional[str] = Query(None, description="Stripe Payment Intent ID")
+):
     """
-    List all payments.
+    List all payments with advanced filtering.
     Enforces Strict Linearizability via Raft ReadIndex Protocol.
     """
     proxy_resp = await _enforce_linearizable_read(request)
     if proxy_resp:
         return proxy_resp
 
-    cache_key = f"payments_list:{skip}:{limit}"
-    cached_data = await redis_cache.get(cache_key)
-    if cached_data:
-        logger.info(f"Cache HIT for {cache_key}")
-        return cached_data
+    # Bypass cache if any advanced filters are applied
+    has_filters = any([start_date, end_date, amount, customer_id, intent_id])
+    
+    if not has_filters:
+        cache_key = f"payments_list:{skip}:{limit}"
+        cached_data = await redis_cache.get(cache_key)
+        if cached_data:
+            logger.info(f"Cache HIT for {cache_key}")
+            return cached_data
+            
+        logger.info(f"Cache MISS for {cache_key}")
+
+    query = db.query(Payment)
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(Payment.created_at >= start_dt)
+        except ValueError:
+            pass
+            
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(Payment.created_at < end_dt)
+        except ValueError:
+            pass
+            
+    if amount is not None:
+        query = query.filter(Payment.amount == amount)
         
-    logger.info(f"Cache MISS for {cache_key}")
-    payments = db.query(Payment).order_by(Payment.created_at.desc()).offset(skip).limit(limit).all()
+    if customer_id:
+        from sqlalchemy import or_
+        query = query.filter(or_(Payment.sender_id == customer_id, Payment.receiver_id == customer_id))
+        
+    # In Settle, intent ID is often stored in transaction_id for Stripe payments
+    if intent_id:
+        query = query.filter(Payment.transaction_id == intent_id)
+
+    payments = query.order_by(Payment.created_at.desc()).offset(skip).limit(limit).all()
     
     response_data = [
         {
@@ -239,11 +282,14 @@ async def list_payments(request: Request, db: Session = Depends(get_db), skip: i
             "sender_id": p.sender_id,
             "receiver_id": p.receiver_id,
             "payment_method": getattr(p, "payment_method", "pm_card_visa"),
-            "status": p.status.value if hasattr(p.status, "value") else str(p.status)
+            "status": p.status.value if hasattr(p.status, "value") else str(p.status),
+            "created_at": p.created_at.isoformat() if p.created_at else None
         } for p in payments
     ]
     
-    await redis_cache.set(cache_key, response_data, expire=10)
+    if not has_filters:
+        await redis_cache.set(cache_key, response_data, expire=10)
+        
     return response_data
 
 @router.get("/stats/volume")

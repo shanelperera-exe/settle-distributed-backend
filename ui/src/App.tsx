@@ -9,6 +9,7 @@ import Database from './pages/Database';
 import Settings from './pages/Settings';
 import Architecture from './pages/Architecture';
 import Alerts from './pages/Alerts';
+import AuditLogs from './pages/AuditLogs';
 import Login from './pages/Login';
 
 const originalFetch = window.fetch;
@@ -51,6 +52,7 @@ function App() {
           <Route path="/database" element={<ProtectedRoute><Database /></ProtectedRoute>} />
           <Route path="/architecture" element={<ProtectedRoute><Architecture /></ProtectedRoute>} />
           <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
+          <Route path="/audit" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         </Routes>
       </AlertProvider>

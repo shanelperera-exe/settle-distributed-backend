@@ -18,7 +18,7 @@ class ChaosInjectionRequest(BaseModel):
     scenario: str
 
 def kill_node_task():
-    logger.warning(f"[{settings.NODE_ID}] Simulating Node Death. Stopping ZK and sleeping...")
+    logger.warning(f"[{settings.NODE_ID}] Simulating Node Death. Stopping ZK and sleeping...", extra={"event": "CHAOS_INJECTION"})
     try:
         raft_node.zk_registry.zk.stop()
     except Exception as e:
@@ -27,14 +27,14 @@ def kill_node_task():
     os._exit(1)
 
 async def cpu_spike_task():
-    logger.warning(f"[{settings.NODE_ID}] Starting CPU spike...")
+    logger.warning(f"[{settings.NODE_ID}] Starting CPU spike...", extra={"event": "CHAOS_INJECTION"})
     end_time = time.time() + 15
     while time.time() < end_time:
         _ = 2 ** 1000
     logger.warning(f"[{settings.NODE_ID}] Finished CPU spike.")
 
 async def mem_spike_task():
-    logger.warning(f"[{settings.NODE_ID}] Starting Memory spike...")
+    logger.warning(f"[{settings.NODE_ID}] Starting Memory spike...", extra={"event": "CHAOS_INJECTION"})
     try:
         # Allocate roughly a few hundred MBs
         dummy = ["A" * 1024 * 1024 for _ in range(500)]
@@ -45,7 +45,7 @@ async def mem_spike_task():
     logger.warning(f"[{settings.NODE_ID}] Finished Memory spike.")
 
 async def network_partition_task():
-    logger.warning(f"[{settings.NODE_ID}] Simulating Network Partition for 15s...")
+    logger.warning(f"[{settings.NODE_ID}] Simulating Network Partition for 15s...", extra={"event": "CHAOS_INJECTION"})
     raft_node._fault_network_partition = True
     await asyncio.sleep(15)
     raft_node._fault_network_partition = False
@@ -99,7 +99,7 @@ async def inject_chaos(request: ChaosInjectionRequest, background_tasks: Backgro
     elif scenario == "DB_DELAY":
         async def db_delay_task():
             from app.platform.core.chaos_state import chaos_state
-            logger.warning(f"[{settings.NODE_ID}] Starting DB Delay...")
+            logger.warning(f"[{settings.NODE_ID}] Starting DB Delay...", extra={"event": "CHAOS_INJECTION"})
             chaos_state.db_delay_seconds = 2.0
             await asyncio.sleep(15)
             chaos_state.db_delay_seconds = 0.0
@@ -109,7 +109,7 @@ async def inject_chaos(request: ChaosInjectionRequest, background_tasks: Backgro
 
     elif scenario == "PAUSE_REPLICATION":
         async def pause_rep_task():
-            logger.warning(f"[{settings.NODE_ID}] Pausing replication...")
+            logger.warning(f"[{settings.NODE_ID}] Pausing replication...", extra={"event": "CHAOS_INJECTION"})
             raft_node._fault_pause_replication = True
             await asyncio.sleep(15)
             raft_node._fault_pause_replication = False
@@ -119,7 +119,7 @@ async def inject_chaos(request: ChaosInjectionRequest, background_tasks: Backgro
 
     elif scenario == "REPLICATION_LAG":
         async def rep_lag_task():
-            logger.warning(f"[{settings.NODE_ID}] Simulating replication lag...")
+            logger.warning(f"[{settings.NODE_ID}] Simulating replication lag...", extra={"event": "CHAOS_INJECTION"})
             raft_node._fault_replication_lag = 3.0
             await asyncio.sleep(15)
             raft_node._fault_replication_lag = 0.0
@@ -129,7 +129,7 @@ async def inject_chaos(request: ChaosInjectionRequest, background_tasks: Backgro
 
     elif scenario == "PAYMENT_BURST":
         import uuid
-        logger.warning(f"[{settings.NODE_ID}] Starting payment burst (50 Tx)...")
+        logger.warning(f"[{settings.NODE_ID}] Starting payment burst (50 Tx)...", extra={"event": "CHAOS_INJECTION"})
         
         async def send_tx(i):
             # Space requests exactly 200ms apart (5 TPS) to guarantee no clumping

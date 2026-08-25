@@ -397,7 +397,7 @@ class RaftNode:
         # Track leader transitions in Prometheus
         raft_leader_changes_total.labels(node_id=self.node_id).inc()
         self._update_role_metric()
-        logger.info(f"[{self.node_id}] Became LEADER for term {self.state.current_term}.")
+        logger.info(f"[{self.node_id}] Became LEADER for term {self.state.current_term}.", extra={"event": "LEADER_ELECTION"})
         
         from app.platform.observability.alerts import alert_manager
         alert_manager.set_alert_state("settle_infrastructure", "LeaderNodeDown", "cluster", False)

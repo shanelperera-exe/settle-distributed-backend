@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { US, GB, EU } from 'country-flag-icons/react/1x1';
-import { FiActivity, FiCheckCircle, FiXCircle, FiClock, FiChevronDown, FiChevronRight, FiLoader, FiDollarSign } from 'react-icons/fi';
+import { FiTerminal, FiShield, FiCpu, FiAlertTriangle, FiActivity, FiCheckCircle, FiXCircle, FiClock, FiChevronDown, FiChevronRight, FiLoader, FiDollarSign } from 'react-icons/fi';
 import { MdInsights } from "react-icons/md";
 import { TbLocationDollar } from "react-icons/tb";
 import { LuHistory, LuDollarSign, LuEuro, LuPoundSterling, LuFilter } from "react-icons/lu";
@@ -16,6 +16,8 @@ import { AiOutlineClear } from "react-icons/ai";
 import { useLocation } from 'react-router-dom';
 import SettleLogo from '../assets/logos/settle_logo_primary.svg';
 import SettleLogoWhite from '../assets/logos/settle_logo_primary_white_bg.svg';
+import type { FilterValues } from '../components/TransactionFilter';
+import { TransactionFilter } from '../components/TransactionFilter';
 
 
 // Types
@@ -142,6 +144,8 @@ export default function Payments() {
   const [historyCustomDate, setHistoryCustomDate] = useState(new Date().toISOString().split('T')[0]);
   const [historyPage, setHistoryPage] = useState(1);
   const itemsPerPage = 10;
+  const [backendFilters, setBackendFilters] = useState<FilterValues | null>(null);
+  const [isFetchingPayments, setIsFetchingPayments] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<{time: string, text: string, color: string}[]>([
     { time: new Date().toLocaleTimeString([], {hour12: false}), text: 'Ready! Your webhook endpoint is receiving events.', color: 'text-[var(--text-muted)]' }
   ]);
@@ -166,7 +170,7 @@ export default function Payments() {
     const interval = setInterval(loadData, 5000);
 
     return () => clearInterval(interval);
-  }, [volumeMetric, timeRange, customDate]);
+  }, [volumeMetric, timeRange, customDate, backendFilters]);
 
   const fetchVolumeStats = async () => {
     try {
@@ -189,8 +193,21 @@ export default function Payments() {
   };
 
   const fetchPayments = async () => {
+    setIsFetchingPayments(true);
     try {
-      const res = await fetch('/api/v1/payments/?limit=500', {
+      let url = '/api/v1/payments/?limit=500';
+      if (backendFilters) {
+        const params = new URLSearchParams();
+        params.append('limit', '500');
+        if (backendFilters.customer_id) params.append('customer_id', backendFilters.customer_id);
+        if (backendFilters.amount) params.append('amount', backendFilters.amount);
+        if (backendFilters.transaction_id) params.append('transaction_id', backendFilters.transaction_id);
+        if (backendFilters.start_date) params.append('start_date', backendFilters.start_date);
+        if (backendFilters.end_date) params.append('end_date', backendFilters.end_date);
+        url = `/api/v1/payments/?${params.toString()}`;
+      }
+
+      const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${import.meta.env.VITE_API_KEY || 'settle-dev-key-12345'}`
         }
@@ -205,6 +222,8 @@ export default function Payments() {
       }
     } catch (e) {
       console.error('Failed to fetch payments', e);
+    } finally {
+      setIsFetchingPayments(false);
     }
   };
 
@@ -1056,6 +1075,14 @@ export default function Payments() {
             transition={{ duration: 0.2 }}
           >
             <div className="p-6 pt-4 glass-card overflow-hidden flex flex-col">
+              <TransactionFilter 
+                onFilter={(filters) => {
+                  const hasFilters = Object.values(filters).some(v => v !== '');
+                  setBackendFilters(hasFilters ? filters : null);
+                  setHistoryPage(1);
+                }} 
+                isLoading={isFetchingPayments} 
+              />
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <h3 className="text-3xl font-space font-bold flex items-center gap-3">
                   <FiClock className="text-[var(--primary)]" /> Recent Payment History
