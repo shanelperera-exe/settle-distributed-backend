@@ -34,6 +34,16 @@ jobs:
           flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run unit tests
+        env:
+          NODE_ID: "node-1"
+          ZOOKEEPER_HOST: "localhost:2181"
+          POSTGRES_HOST: "localhost"
+          POSTGRES_USER: "postgres"
+          POSTGRES_PASSWORD: "password"
+          POSTGRES_DB: "settle_db"
+          STRIPE_SECRET_KEY: "sk_test_dummy"
+          STRIPE_PUBLISHABLE_KEY: "pk_test_dummy"
+          STRIPE_WEBHOOK_SECRET: "whsec_dummy"
         run: |
           # Use PYTHONPATH to allow tests to import app
           PYTHONPATH=backend pytest backend/tests/
