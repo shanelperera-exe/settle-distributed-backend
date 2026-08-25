@@ -147,7 +147,7 @@ def instrument_app(app) -> None:
 
 def shutdown_tracing() -> None:
     """Flush pending spans and shut down the tracer provider. Call on app shutdown."""
-    global _tracer_provider, _initialized
+    global _initialized
 
     if _tracer_provider is not None:
         try:
