@@ -10,7 +10,7 @@ from app.platform.distributed.raft.log import RaftLog, LogEntry
 from app.platform.distributed.raft.election import ElectionManager
 from app.platform.distributed.zookeeper.registry import ZKRegistry
 from app.platform.distributed.zookeeper.watcher import ZKWatcher
-from app.platform.distributed.raft.persistence import save_raft_state
+from app.platform.distributed.raft.persistence import save_raft_state, append_raft_log_entry
 from app.platform.observability.metrics import (
     raft_leader_changes_total,
     raft_current_term,
@@ -55,10 +55,14 @@ class RaftNode:
         self.peer_ips: Dict[str, str] = {}
         self.apply_callback = None
 
-        # Asyncio primitives
         self.lock = asyncio.Lock()
         self.loop_task = None
         self.applier_task = None
+
+        # Fault Injection Flags
+        self._fault_network_partition = False
+        self._fault_pause_replication = False
+        self._fault_replication_lag = 0.0
 
         # Heartbeat interval
         self.heartbeat_interval = settings.RAFT_HEARTBEAT_INTERVAL_SEC
@@ -81,6 +85,7 @@ class RaftNode:
         
         # Initialize metrics with current state
         raft_current_term.labels(node_id=self.node_id).set(self.state.current_term)
+        raft_leader_changes_total.labels(node_id=self.node_id).inc(0)
         self._update_role_metric()
         
         self.zk_registry.register_node()
@@ -114,6 +119,9 @@ class RaftNode:
 
     def _resolve_and_update_peers(self, peers: List[str]):
         """Resolve hostnames to IPv4 IPs synchronously and update peer lists."""
+        old_peers = set(self.active_peers)
+        new_peers = set(peers)
+        
         self.active_peers = peers
         for p in peers:
             try:
@@ -122,6 +130,8 @@ class RaftNode:
             except Exception as e:
                 logger.error(f"[{self.node_id}] DNS resolution failed for {p}: {e}")
         logger.info(f"[{self.node_id}] Peers updated: {self.active_peers} => IPs: {self.peer_ips}")
+
+
 
     def set_apply_callback(self, callback):
         self.apply_callback = callback
@@ -141,12 +151,14 @@ class RaftNode:
 
         async with self.lock:
             entry = LogEntry(term=self.state.current_term, command=command)
-            await self.log.append(self.node_id, entry)
-            target_index = self.log.get_last_log_index()
+            target_index = self.log.append_memory(entry)
             # Track pending replication queue
             replication_queue_size.labels(node_id=self.node_id).set(
                 self.log.get_last_log_index() - self.state.commit_index
             )
+
+        # Write to DB outside the lock to prevent blocking the event loop
+        await append_raft_log_entry(self.node_id, target_index, entry.term, entry.command)
 
         logger.info(f"[{self.node_id}] Command submitted at index {target_index}. Waiting for quorum commit...")
 
@@ -360,6 +372,7 @@ class RaftNode:
                         logger.info(f"[{self.node_id}] Higher term {resp_term} seen. Stepping down.")
                         await self._update_term_and_vote(resp_term, None)
                         self.state.role = NodeState.FOLLOWER
+                        self._update_role_metric()
                         self.election_manager.reset_timer()  # MUST reset so we don't immediately re-elect
                         return
                     if resp.get("vote_granted"):
@@ -372,6 +385,7 @@ class RaftNode:
                 logger.info(f"[{self.node_id}] Lost election for term {current_term} ({votes}/{majority} votes). Backing off.")
                 # Back off to follower; _follower_loop will reset_timer on entry.
                 self.state.role = NodeState.FOLLOWER
+                self._update_role_metric()
 
     def _become_leader(self):
         """Transitions to LEADER state and reinitializes volatile leader state."""
@@ -384,6 +398,9 @@ class RaftNode:
         raft_leader_changes_total.labels(node_id=self.node_id).inc()
         self._update_role_metric()
         logger.info(f"[{self.node_id}] Became LEADER for term {self.state.current_term}.")
+        
+        from app.platform.observability.alerts import alert_manager
+        alert_manager.set_alert_state("settle_infrastructure", "LeaderNodeDown", "cluster", False)
 
     # -------------------------------------------------------------------------
     # Leader Loop
@@ -497,10 +514,14 @@ class RaftNode:
     async def handle_request_vote(self, term: int, candidate_id: str,
                                    last_log_index: int, last_log_term: int) -> dict:
         """Incoming RequestVote RPC."""
+        if getattr(self, "_fault_network_partition", False):
+            return {"term": self.state.current_term, "vote_granted": False}
+            
         async with self.lock:
             if term > self.state.current_term:
                 await self._update_term_and_vote(term, None)
                 self.state.role = NodeState.FOLLOWER
+                self._update_role_metric()
                 self.election_manager.reset_timer()
 
             vote_granted = False
@@ -520,6 +541,17 @@ class RaftNode:
                                      prev_log_index: int, prev_log_term: int,
                                      entries: List[dict], leader_commit: int) -> dict:
         """Incoming AppendEntries RPC (heartbeat + log replication)."""
+        if getattr(self, "_fault_network_partition", False):
+            return {"term": self.state.current_term, "success": False}
+            
+        if getattr(self, "_fault_pause_replication", False):
+            # Silently ignore the request to simulate a dropped RPC or paused replication
+            return {"term": self.state.current_term, "success": False}
+            
+        lag = getattr(self, "_fault_replication_lag", 0.0)
+        if lag > 0:
+            await asyncio.sleep(lag)
+            
         async with self.lock:
             if term < self.state.current_term:
                 return {"term": self.state.current_term, "success": False}
@@ -537,14 +569,22 @@ class RaftNode:
                self.log.get_term_at(prev_log_index) != prev_log_term:
                 return {"term": self.state.current_term, "success": False}
 
-            # Truncate conflicting entries and append new ones.
+            # Truncate conflicting entries and append new ones in memory.
             log_entries = [LogEntry.from_dict(e) for e in entries]
+            db_entries = []
             if log_entries:
-                await self.log.truncate_and_append(self.node_id, prev_log_index + 1, log_entries)
+                db_entries = self.log.truncate_and_append_memory(prev_log_index + 1, log_entries)
 
-            # Update commit index.
-            if leader_commit > self.state.commit_index:
-                self.state.commit_index = min(leader_commit, self.log.get_last_log_index())
+        # Write to DB outside the lock to prevent blocking the event loop
+        if db_entries:
+            from app.platform.distributed.raft.persistence import truncate_and_append_raft_log
+            await truncate_and_append_raft_log(self.node_id, prev_log_index + 1, db_entries)
+
+        async with self.lock:
+            # Update commit index only after persisting to disk (Write-Ahead Log)
+            if self.state.role == NodeState.FOLLOWER and self.state.leader_id == leader_id:
+                if leader_commit > self.state.commit_index:
+                    self.state.commit_index = min(leader_commit, self.log.get_last_log_index())
 
             return {"term": self.state.current_term, "success": True}
 
@@ -554,6 +594,8 @@ class RaftNode:
 
     async def _send_request_vote(self, peer_id: str, term: int,
                                   last_log_index: int, last_log_term: int) -> Optional[dict]:
+        if getattr(self, "_fault_network_partition", False):
+            return None
         ip = self.peer_ips.get(peer_id, peer_id)
         url = f"http://{ip}:{settings.INTERNAL_PORT}/api/v1/raft/request_vote"
         payload = {
@@ -573,6 +615,8 @@ class RaftNode:
     async def _send_append_entries(self, peer_id: str, term: int,
                                     prev_log_index: int, prev_log_term: int,
                                     entries: list, leader_commit: int) -> Optional[dict]:
+        if getattr(self, "_fault_network_partition", False):
+            return None
         ip = self.peer_ips.get(peer_id, peer_id)
         url = f"http://{ip}:{settings.INTERNAL_PORT}/api/v1/raft/append_entries"
         payload = {

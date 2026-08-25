@@ -1,4 +1,5 @@
 import time
+# pyrefly: ignore [missing-import]
 import stripe
 from typing import Dict, Any, Optional
 from app.platform.core.config import settings
@@ -16,7 +17,7 @@ class StripeService:
         stripe.api_key = settings.STRIPE_SECRET_KEY
         self.webhook_secret = settings.STRIPE_WEBHOOK_SECRET
         
-    def create_payment_intent(self, amount: float, currency: str, idempotency_key: str, metadata: Optional[Dict[str, str]] = None) -> stripe.PaymentIntent:
+    def create_payment_intent(self, amount: float, currency: str, idempotency_key: str, metadata: Optional[Dict[str, str]] = None, payment_method: str = "pm_card_visa") -> stripe.PaymentIntent:
         """
         Creates a Stripe PaymentIntent.
         
@@ -42,8 +43,8 @@ class StripeService:
                         currency=currency.lower(),
                         metadata=metadata or {},
                         idempotency_key=idempotency_key,
-                        # Auto-confirm with test visa card so we don't need manual CLI confirmation
-                        payment_method="pm_card_visa",
+                        # Auto-confirm with test card so we don't need manual CLI confirmation
+                        payment_method=payment_method,
                         confirm=True,
                         automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
                         return_url=f"{settings.PUBLIC_BASE_URL}/success"
@@ -55,7 +56,7 @@ class StripeService:
                     currency=currency.lower(),
                     metadata=metadata or {},
                     idempotency_key=idempotency_key,
-                    payment_method="pm_card_visa",
+                    payment_method=payment_method,
                     confirm=True,
                     automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
                     return_url=f"{settings.PUBLIC_BASE_URL}/success"

@@ -20,10 +20,10 @@ route:
   group_by: ['alertname', 'cluster']
   
   # How long to wait before sending the first notification (allows grouping)
-  group_wait: 30s
+  group_wait: 2s
   
   # How long to wait before sending a notification about *new* alerts in the same group
-  group_interval: 5m
+  group_interval: 10s
   
   # How long to wait before re-sending a notification for an alert that is still firing
   repeat_interval: 4h
@@ -34,24 +34,24 @@ route:
     - matchers:
         - severity="critical"
       receiver: 'pagerduty-mock'
-      continue: false
+      continue: true
       
     # Payments team alerts go to a specific channel
     - matchers:
         - team="payments"
       receiver: 'payments-slack-mock'
+      continue: true
 
 receivers:
   # Fallback/Default receiver
   - name: 'default-webhook'
     webhook_configs:
-      # We use a mock webhook endpoint for local development testing
-      - url: 'http://localhost:8080/alerts'
+      - url: 'http://nginx:8000/api/v1/alerts/webhook'
 
   - name: 'pagerduty-mock'
     webhook_configs:
-      - url: 'http://localhost:8080/pagerduty'
+      - url: 'http://nginx:8000/api/v1/alerts/webhook'
 
   - name: 'payments-slack-mock'
     webhook_configs:
-      - url: 'http://localhost:8080/slack/payments'
+      - url: 'http://nginx:8000/api/v1/alerts/webhook'

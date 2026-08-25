@@ -39,7 +39,7 @@ class IdempotencyManager:
         serialized = json.dumps(payload, sort_keys=True).encode('utf-8')
         return hashlib.sha256(serialized).hexdigest()
 
-    def check_or_create_lock(self, key: str, payload: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]], int]:
+    def _check_or_create_lock_sync(self, key: str, payload: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]], int]:
         """
         Validates the idempotency key before processing begins.
         
@@ -89,7 +89,11 @@ class IdempotencyManager:
             # This should never happen unless the row was instantly deleted
             raise IdempotencyException("Failed to acquire idempotency lock.")
 
-    def finalize(self, key: str, payment_id: str, response_code: int, response_body: Dict[str, Any]):
+    async def check_or_create_lock(self, key: str, payload: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]], int]:
+        import asyncio
+        return await asyncio.to_thread(self._check_or_create_lock_sync, key, payload)
+
+    def _finalize_sync(self, key: str, payment_id: str, response_code: int, response_body: Dict[str, Any]):
         """
         After the payment is successfully committed locally (and replicated),
         we update the idempotency record with the final response.
@@ -103,7 +107,11 @@ class IdempotencyManager:
             self.db.commit()
             logger.info(f"Finalized idempotency record for key {key}.")
             
-    def release_lock_on_failure(self, key: str):
+    async def finalize(self, key: str, payment_id: str, response_code: int, response_body: Dict[str, Any]):
+        import asyncio
+        await asyncio.to_thread(self._finalize_sync, key, payment_id, response_code, response_body)
+            
+    def _release_lock_on_failure_sync(self, key: str):
         """
         If the payment fails (e.g., due to bad validation before quorum),
         we should delete or fail the idempotency key so the client can retry.
@@ -113,3 +121,7 @@ class IdempotencyManager:
             self.db.delete(existing_key)
             self.db.commit()
             logger.info(f"Released processing lock for idempotency key {key} due to failure.")
+
+    async def release_lock_on_failure(self, key: str):
+        import asyncio
+        await asyncio.to_thread(self._release_lock_on_failure_sync, key)

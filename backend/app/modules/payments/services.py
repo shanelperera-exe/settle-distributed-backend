@@ -18,6 +18,8 @@ from app.platform.observability.metrics import (
 )
 from app.platform.observability.tracing import get_tracer
 
+_finalized_intents = set()
+
 class PaymentService:
     """
     Orchestrates the distributed logic for handling payments and webhooks using RAFT.
@@ -60,6 +62,7 @@ class PaymentService:
         payments_pending.labels(node_id=settings.NODE_ID).inc()
         
         tracer = get_tracer()
+        init_success = False
         
         try:
             # 1. Prepare Local Model Representation
@@ -72,6 +75,7 @@ class PaymentService:
                 currency=payment_in.currency,
                 sender_id=payment_in.sender_id,
                 receiver_id=payment_in.receiver_id,
+                payment_method=payment_in.payment_method,
                 status=PaymentStatus.PENDING,
                 originating_node_id=settings.NODE_ID,
                 processing_node_id=settings.NODE_ID,
@@ -100,9 +104,7 @@ class PaymentService:
                 payment_processing_duration_seconds.labels(
                     node_id=settings.NODE_ID, stage="initiate"
                 ).observe(duration)
-                payments_processed_total.labels(
-                    node_id=settings.NODE_ID, status="success"
-                ).inc()
+                init_success = True
                 return new_payment
             else:
                 payments_failed_total.labels(
@@ -110,12 +112,10 @@ class PaymentService:
                 ).inc()
                 raise Exception("Failed to achieve quorum for payment initialization.")
         except Exception:
-            payments_processed_total.labels(
-                node_id=settings.NODE_ID, status="failure"
-            ).inc()
             raise
         finally:
-            payments_pending.labels(node_id=settings.NODE_ID).dec()
+            if not init_success:
+                payments_pending.labels(node_id=settings.NODE_ID).dec()
 
     async def finalize_payment(self, stripe_intent_id: str, success: bool):
         """
@@ -125,14 +125,27 @@ class PaymentService:
         FailoverService.ensure_leader()
         start_time = time.perf_counter()
         
-        payment = self.payment_repo.get_by_stripe_intent_id(stripe_intent_id)
+        import asyncio
+        payment = None
+        for _ in range(10):
+            payment = await asyncio.to_thread(self.payment_repo.get_by_stripe_intent_id, stripe_intent_id)
+            if payment:
+                break
+            await asyncio.sleep(0.5)
+            
         if not payment:
-            logger.warning(f"Received webhook for unknown PaymentIntent: {stripe_intent_id}")
-            return
+            logger.warning(f"Received webhook for unknown PaymentIntent: {stripe_intent_id}. Triggering retry.")
+            raise Exception(f"PaymentIntent {stripe_intent_id} not found in DB yet.")
             
         if payment.status in [PaymentStatus.COMPLETED, PaymentStatus.FAILED, PaymentStatus.CANCELLED]:
             logger.info(f"Payment {payment.id} already finalized. Ignoring duplicate webhook.")
             return
+
+        if stripe_intent_id in _finalized_intents:
+            logger.info(f"Payment {payment.id} already finalizing in-memory. Ignoring duplicate webhook.")
+            return
+
+        _finalized_intents.add(stripe_intent_id)
 
         # Set context for log correlation
         request_ctx.payment_id.set(payment.id)
@@ -162,21 +175,25 @@ class PaymentService:
         }
         
         # 3. Wait for Majority Quorum Commit
-        quorum_achieved = await raft_node.submit_command(command)
-        
-        duration = time.perf_counter() - start_time
-        payment_processing_duration_seconds.labels(
-            node_id=settings.NODE_ID, stage="finalize"
-        ).observe(duration)
-        
-        if quorum_achieved:
-            payments_processed_total.labels(
-                node_id=settings.NODE_ID,
-                status="success" if success else "failure"
-            ).inc()
-            logger.info(f"Payment {payment.id} strictly finalized via webhook consensus. Status: {final_status}")
-        else:
-            payments_failed_total.labels(
-                node_id=settings.NODE_ID, reason="quorum_failure"
-            ).inc()
-            raise Exception("Failed to achieve Raft quorum for payment finalization.")
+        try:
+            quorum_achieved = await raft_node.submit_command(command)
+            
+            duration = time.perf_counter() - start_time
+            payment_processing_duration_seconds.labels(
+                node_id=settings.NODE_ID, stage="finalize"
+            ).observe(duration)
+            
+            if quorum_achieved:
+                payments_processed_total.labels(
+                    node_id=settings.NODE_ID,
+                    status="success" if success else "failure"
+                ).inc()
+                logger.info(f"Payment {payment.id} strictly finalized via webhook consensus. Status: {final_status}")
+            else:
+                payments_failed_total.labels(
+                    node_id=settings.NODE_ID, reason="quorum_failure"
+                ).inc()
+                raise Exception("Failed to achieve Raft quorum for payment finalization.")
+        finally:
+            # Always decrement pending count when finalization attempt concludes
+            payments_pending.labels(node_id=settings.NODE_ID).dec()

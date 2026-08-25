@@ -13,12 +13,12 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 global:
-  # How frequently to scrape targets. 15s is the industry standard —
-  # short enough for real-time dashboards, long enough to avoid overload.
-  scrape_interval: 15s
+  # How frequently to scrape targets. We use 2s here instead of the industry standard 15s
+  # so that rapid chaos engineering simulations (e.g. 10s crashes) are reliably detected.
+  scrape_interval: 2s
 
   # How frequently to evaluate alerting and recording rules.
-  evaluation_interval: 15s
+  evaluation_interval: 2s
 
   # Attach these labels to all time series and alerts from this Prometheus instance.
   external_labels:

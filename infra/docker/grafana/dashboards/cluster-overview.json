@@ -32,7 +32,7 @@
       "transparent": true,
       "datasource": { "type": "prometheus", "uid": "" },
       "targets": [
-        { "expr": "raft_node_role{role=\"LEADER\"} == 1", "legendFormat": "{{ node_id }}" }
+        { "expr": "raft_node_role{role=\"LEADER\"} == 1", "legendFormat": "{{ node_id }}", "instant": true }
       ],
       "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] }, "mappings": [{ "type": "value", "options": { "1": { "text": "LEADER", "color": "green" } } }] } },
       "options": { "colorMode": "background", "graphMode": "none", "textMode": "name", "justifyMode": "auto" }
@@ -91,7 +91,7 @@
       "transparent": true,
       "datasource": { "type": "prometheus", "uid": "" },
       "targets": [
-        { "expr": "increase(raft_leader_changes_total[1h])", "legendFormat": "{{ node_id }}" }
+        { "expr": "increase(raft_leader_changes_total[$__range])", "legendFormat": "{{ node_id }}" }
       ],
       "fieldConfig": { "defaults": { "min": 0, "color": { "mode": "palette-classic" } } },
       "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true }

@@ -3,10 +3,12 @@ import uuid
 import socket
 import httpx
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 from app.platform.infrastructure.db.session import get_db
 from app.contracts.payment import PaymentCreate, PaymentResponse
@@ -133,7 +135,7 @@ async def process_payment(
         last_error = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=30.0) as client:
                     resp = await client.post(
                         target_url,
                         headers=headers,
@@ -151,7 +153,7 @@ async def process_payment(
     # --- Step 1: Idempotency / dedup check ---
     dedup_manager = IdempotencyManager(db)
     try:
-        is_dup, cached_body, cached_code = dedup_manager.check_or_create_lock(
+        is_dup, cached_body, cached_code = await dedup_manager.check_or_create_lock(
             idempotency_key, payment_in.model_dump(mode="json")
         )
         if is_dup:
@@ -166,6 +168,7 @@ async def process_payment(
             amount=payment_in.amount,
             currency=payment_in.currency,
             idempotency_key=idempotency_key,
+            payment_method=payment_in.payment_method
         )
 
         # --- Step 3: Propose PAYMENT_INIT to the Raft log ---
@@ -176,6 +179,16 @@ async def process_payment(
             stripe_intent_id=intent.id,
         )
 
+        # --- Step 3b: Auto-finalize if synchronous confirmation succeeded ---
+        if intent.status == "succeeded":
+            from app.platform.distributed.raft.node import raft_node
+            # Wait for the state machine to apply the init command to the DB
+            target = raft_node.state.commit_index
+            while raft_node.state.last_applied < target:
+                await asyncio.sleep(0.01)
+            await payment_service.finalize_payment(intent.id, success=True)
+            payment.status = PaymentStatus.COMPLETED
+
         response_data = {
             "payment_id": payment.id,
             "transaction_id": payment.transaction_id,
@@ -184,12 +197,12 @@ async def process_payment(
             "status": payment.status.value,
         }
 
-        dedup_manager.finalize(idempotency_key, payment.id, 200, response_data)
+        await dedup_manager.finalize(idempotency_key, payment.id, 200, response_data)
         return JSONResponse(status_code=200, content=response_data)
 
     except Exception as e:
         logger.error(f"Error processing payment: {e}", exc_info=True)
-        dedup_manager.release_lock_on_failure(idempotency_key)
+        await dedup_manager.release_lock_on_failure(idempotency_key)
         msg = str(e).lower()
         if "quorum" in msg or "leadership" in msg or "not the leader" in msg:
             raise HTTPException(status_code=503, detail="Leader changed mid-transaction. Please retry.")
@@ -215,9 +228,115 @@ async def list_payments(request: Request, db: Session = Depends(get_db), skip: i
             "currency": p.currency,
             "sender_id": p.sender_id,
             "receiver_id": p.receiver_id,
+            "payment_method": getattr(p, "payment_method", "pm_card_visa"),
             "status": p.status.value if hasattr(p.status, "value") else str(p.status)
         } for p in payments
     ]
+
+@router.get("/stats/volume")
+async def get_volume_stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    metric: str = Query("gross", description="gross, net, successful"),
+    time_range: str = Query("7d", description="today, yesterday, 7d, 30d, custom"),
+    custom_date: str = Query(None, description="YYYY-MM-DD format for custom time range")
+):
+    """
+    Get aggregated volume statistics for the payment insights dashboard.
+    """
+    proxy_resp = await _enforce_linearizable_read(request)
+    if proxy_resp:
+        return proxy_resp
+
+    now = datetime.utcnow()
+    if time_range == "custom" and custom_date:
+        try:
+            start_date = datetime.strptime(custom_date, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+            now = start_date + timedelta(days=1)
+            prev_start_date = start_date - timedelta(days=1)
+            prev_end_date = start_date
+        except ValueError:
+            # Fallback to today if format is invalid
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            prev_start_date = start_date - timedelta(days=1)
+            prev_end_date = start_date
+    elif time_range == "today":
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_start_date = start_date - timedelta(days=1)
+        prev_end_date = start_date
+    elif time_range == "yesterday":
+        start_date = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        now = start_date + timedelta(days=1)
+        prev_start_date = start_date - timedelta(days=1)
+        prev_end_date = start_date
+    elif time_range == "30d":
+        start_date = now - timedelta(days=30)
+        prev_start_date = start_date - timedelta(days=30)
+        prev_end_date = start_date
+    else:
+        # Default 7d
+        start_date = now - timedelta(days=7)
+        prev_start_date = start_date - timedelta(days=7)
+        prev_end_date = start_date
+
+    # Base query for successful payments
+    query = db.query(Payment).filter(
+        Payment.created_at >= start_date, 
+        Payment.created_at <= now, 
+        Payment.status == PaymentStatus.COMPLETED
+    )
+    
+    payments = query.all()
+    
+    # Previous period query
+    prev_query = db.query(Payment).filter(
+        Payment.created_at >= prev_start_date,
+        Payment.created_at < prev_end_date,
+        Payment.status == PaymentStatus.COMPLETED
+    )
+    prev_payments = prev_query.all()
+    
+    total_gross = sum(float(p.amount) for p in payments)
+    total_net = sum(float(p.amount) * 0.97 for p in payments) # Assume 3% fee
+    total_count = len(payments)
+    
+    prev_gross = sum(float(p.amount) for p in prev_payments)
+    prev_net = sum(float(p.amount) * 0.97 for p in prev_payments)
+    prev_count = len(prev_payments)
+    
+    bins = defaultdict(lambda: {"gross": 0, "net": 0, "count": 0})
+    
+    for p in payments:
+        if time_range in ["today", "yesterday"]:
+            bin_key = p.created_at.strftime("%I %p") # e.g. "01 PM"
+        else:
+            bin_key = p.created_at.strftime("%b %d") # e.g. "Jun 23"
+            
+        bins[bin_key]["gross"] += float(p.amount)
+        bins[bin_key]["net"] += float(p.amount) * 0.97
+        bins[bin_key]["count"] += 1
+        
+    timeseries = [{"time": k, "value": round(v["count"] if metric == "successful" else v[metric], 2)} for k, v in bins.items()]
+    
+    current_value = total_count if metric == "successful" else (total_net if metric == "net" else total_gross)
+    previous_value = prev_count if metric == "successful" else (prev_net if metric == "net" else prev_gross)
+    
+    # Calculate 24h gross for the massive KPI block
+    last_24h_start = datetime.utcnow() - timedelta(days=1)
+    last_24h_payments = db.query(Payment).filter(
+        Payment.created_at >= last_24h_start,
+        Payment.status == PaymentStatus.COMPLETED
+    ).all()
+    total_gross_24h = sum(float(p.amount) for p in last_24h_payments)
+    
+    return {
+        "metric": metric,
+        "time_range": time_range,
+        "current_value": round(current_value, 2),
+        "previous_value": round(previous_value, 2),
+        "total_gross_24h": round(total_gross_24h, 2),
+        "timeseries": timeseries
+    }
 
 @router.get("/{payment_id}", response_model=Dict[str, Any])
 async def get_payment(payment_id: str, request: Request, db: Session = Depends(get_db)):

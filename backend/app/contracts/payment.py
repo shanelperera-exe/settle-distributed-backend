@@ -8,6 +8,7 @@ class PaymentCreate(BaseModel):
     currency: str = Field(default="USD", max_length=3)
     sender_id: str
     receiver_id: str
+    payment_method: str = Field(default="pm_card_visa")
 
 class PaymentResponse(BaseModel):
     id: str

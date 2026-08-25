@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -67,22 +67,22 @@ class RaftLog:
             return self.entries[offset]
         return None
 
-    async def append(self, node_id: str, entry: LogEntry):
-        """Leader appends a new command from a client."""
+    def append_memory(self, entry: LogEntry) -> int:
+        """Leader appends a new command from a client in memory only."""
         self.entries.append(entry)
         index = self.get_last_log_index()
-        await append_raft_log_entry(node_id, index, entry.term, entry.command)
         logger.info(f"Appended local log entry at index {index} for term {entry.term}")
+        return index
 
-    async def truncate_and_append(self, node_id: str, index: int, entries: List[LogEntry]):
+    def truncate_and_append_memory(self, index: int, entries: List[LogEntry]) -> List[Tuple[int, int, dict]]:
         """
-        Follower updates its log based on AppendEntries RPC from Leader.
+        Follower updates its log in memory and returns entries to be persisted.
         """
         if index <= self.last_included_index:
             # We are asked to truncate logs that are already compacted.
             diff = self.last_included_index - index + 1
             if diff >= len(entries):
-                return
+                return []
             index += diff
             entries = entries[diff:]
             
@@ -94,12 +94,12 @@ class RaftLog:
         for entry in entries:
             self.entries.append(entry)
             
+        db_entries = []
         if len(entries) > 0:
-            db_entries = []
             for i, entry in enumerate(entries):
                 db_entries.append((index + i, entry.term, entry.command))
-            await truncate_and_append_raft_log(node_id, index, db_entries)
-            logger.info(f"Replicated {len(entries)} logs. Current last index: {self.get_last_log_index()}")
+        logger.info(f"Replicated {len(entries)} logs. Current last index: {self.get_last_log_index()}")
+        return db_entries
 
     def get_entries_from(self, next_index: int) -> List[dict]:
         """Returns serialized entries starting from the requested index (used by Leader to sync followers)."""

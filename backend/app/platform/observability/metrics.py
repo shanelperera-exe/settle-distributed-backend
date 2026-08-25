@@ -46,6 +46,10 @@ from prometheus_client import (
 # relevant in a containerized environment.
 REGISTRY = CollectorRegistry(auto_describe=True)
 
+# Register process metrics to our custom registry to get CPU and memory stats
+from prometheus_client import ProcessCollector
+ProcessCollector(registry=REGISTRY)
+
 # ── Histogram Bucket Definitions ─────────────────────────────────────────────
 # Tuned for payment processing and distributed consensus latencies.
 # Sub-10ms buckets capture fast Raft heartbeats; 10s+ captures slow Stripe calls.
