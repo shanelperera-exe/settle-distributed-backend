@@ -241,6 +241,43 @@ const ZkNode = ({ data }: any) => (
   </BaseNode>
 );
 
+const RedisNode = ({ data }: any) => (
+  <BaseNode data={data} targetPos={Position.Left} sourcePos={null} className="!border-red-500/50 border-2 transition-transform hover:scale-105">
+    <div className="flex flex-col items-center justify-center gap-3 group">
+      <div className="relative flex justify-center mb-1">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Redis_logo.svg/3840px-Redis_logo.svg.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail"
+          alt="Redis"
+          className="h-16 w-auto"
+        />
+      </div>
+      <span className="text-xl font-bold text-[var(--text)] uppercase tracking-wider">{data.label}</span>
+      <div className="flex flex-col items-center gap-1.5">
+        <span className="text-xs text-white bg-red-500 px-2.5 py-0.5 font-bold uppercase tracking-widest rounded shadow-sm">In-Memory Cache</span>
+        {data.port && (
+          <div className="flex flex-col items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-2.5">
+              <div className={`flex items-center gap-2 text-xs px-2 py-1 font-bold rounded uppercase ${data.status === 'DOWN' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${data.status === 'DOWN' ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${data.status === 'DOWN' ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                </span>
+                {data.status || 'HEALTHY'}
+              </div>
+              <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                PORT: {data.port}
+              </span>
+            </div>
+            <button onClick={() => dispatchLogEvent('redis')} className="text-xs flex items-center justify-center gap-1.5 mt-1 bg-[var(--surface)] border border-[var(--glass-border)] px-4 py-1.5 rounded hover:text-red-500 hover:border-red-500 transition-all w-full">
+              <FiTerminal size={14} /> LOGS
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  </BaseNode>
+);
+
 const ObsNode = ({ data }: any) => {
   const services = [
     { name: 'Prometheus', port: 9090, logo: 'https://upload.wikimedia.org/wikipedia/commons/3/38/Prometheus_software_logo.svg' },
@@ -292,7 +329,8 @@ const nodeTypes = {
   app: AppNode,
   db: DbNode,
   zk: ZkNode,
-  obs: ObsNode
+  obs: ObsNode,
+  redis: RedisNode
 };
 
 const initialNodes: Node[] = [
@@ -303,6 +341,7 @@ const initialNodes: Node[] = [
   { id: 'nginx', type: 'lb', position: { x: 400, y: 150 }, data: { label: 'NGINX' } },
 
   { id: 'zookeeper', type: 'zk', position: { x: 400, y: 450 }, data: { label: 'ZooKeeper' } },
+  { id: 'redis', type: 'redis', position: { x: 750, y: 450 }, data: { label: 'Redis Cache' } },
 
   { id: 'node-1', type: 'app', position: { x: 50, y: 300 }, data: { label: 'settle-node-1' } },
   { id: 'node-2', type: 'app', position: { x: 270, y: 300 }, data: { label: 'settle-node-2' } },
@@ -342,6 +381,12 @@ const initialEdges: Edge[] = [
   { id: 'e-n3-zk', source: 'node-3', sourceHandle: 'right', target: 'zookeeper', animated: true, label: 'TCP / 2181', ...labelProps, style: { stroke: '#f59e0b', strokeWidth: 1, strokeDasharray: '5 5' } },
   { id: 'e-n4-zk', source: 'node-4', sourceHandle: 'right', target: 'zookeeper', animated: true, label: 'TCP / 2181', ...labelProps, style: { stroke: '#f59e0b', strokeWidth: 1, strokeDasharray: '5 5' } },
   { id: 'e-n5-zk', source: 'node-5', sourceHandle: 'right', target: 'zookeeper', animated: true, label: 'TCP / 2181', ...labelProps, style: { stroke: '#f59e0b', strokeWidth: 1, strokeDasharray: '5 5' } },
+
+  { id: 'e-n1-redis', source: 'node-1', sourceHandle: 'right', target: 'redis', animated: true, label: 'TCP / 6379', ...labelProps, style: { stroke: '#ef4444', strokeWidth: 1 } },
+  { id: 'e-n2-redis', source: 'node-2', sourceHandle: 'right', target: 'redis', animated: true, label: 'TCP / 6379', ...labelProps, style: { stroke: '#ef4444', strokeWidth: 1 } },
+  { id: 'e-n3-redis', source: 'node-3', sourceHandle: 'right', target: 'redis', animated: true, label: 'TCP / 6379', ...labelProps, style: { stroke: '#ef4444', strokeWidth: 1 } },
+  { id: 'e-n4-redis', source: 'node-4', sourceHandle: 'right', target: 'redis', animated: true, label: 'TCP / 6379', ...labelProps, style: { stroke: '#ef4444', strokeWidth: 1 } },
+  { id: 'e-n5-redis', source: 'node-5', sourceHandle: 'right', target: 'redis', animated: true, label: 'TCP / 6379', ...labelProps, style: { stroke: '#ef4444', strokeWidth: 1 } },
 
   { id: 'e-n1-db', source: 'node-1', sourceHandle: 'bottom', target: 'db-1', animated: true, label: 'TCP / 5432', ...labelProps, style: { stroke: '#336791', strokeWidth: 2 } },
   { id: 'e-n2-db', source: 'node-2', sourceHandle: 'bottom', target: 'db-2', animated: true, label: 'TCP / 5432', ...labelProps, style: { stroke: '#336791', strokeWidth: 2 } },
@@ -551,6 +596,9 @@ export default function Architecture() {
             }
             if (n.type === 'zk') {
               return { ...n, data: { ...n.data, port: 2181, status: 'HEALTHY' } };
+            }
+            if (n.type === 'redis') {
+              return { ...n, data: { ...n.data, port: 6379, status: 'HEALTHY' } };
             }
             return n;
           })
