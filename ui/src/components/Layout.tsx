@@ -581,7 +581,7 @@ const Option = ({ Icon, title, path, currentPath, open, notifs }: OptionProps) =
       } ${
         !selected 
           ? "bg-transparent hover:bg-[var(--background)] text-[var(--text-muted)] hover:text-[var(--text)]" 
-          : "text-white"
+          : "text-black"
       }`}
     >
       <AnimatePresence>
@@ -597,7 +597,7 @@ const Option = ({ Icon, title, path, currentPath, open, notifs }: OptionProps) =
 
       <motion.div
         layout
-        className={`shrink-0 place-content-center text-2xl relative z-10 flex items-center justify-center ${selected ? "text-white" : ""}`}
+        className={`shrink-0 place-content-center text-2xl relative z-10 flex items-center justify-center ${selected ? "text-black" : ""}`}
       >
         <Icon />
         {notifs && (
@@ -610,7 +610,7 @@ const Option = ({ Icon, title, path, currentPath, open, notifs }: OptionProps) =
           initial={{ opacity: 0, width: 0 }}
           animate={{ opacity: 1, width: "auto" }}
           transition={{ delay: 0.125 }}
-          className={`text-base font-google-code font-bold whitespace-nowrap ml-4 relative z-10 flex items-center gap-2.5 ${selected ? "text-white" : ""}`}
+          className={`text-base font-google-code font-bold whitespace-nowrap ml-4 relative z-10 flex items-center gap-2.5 ${selected ? "text-black" : ""}`}
         >
           {notifs && (
             <span className="flex h-5 min-w-[20px] items-center justify-center rounded bg-red-500 text-[11px] font-bold text-white px-1.5 shadow-sm">

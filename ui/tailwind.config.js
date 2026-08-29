@@ -13,7 +13,13 @@ export default {
         surface: "var(--surface)",
         text: "var(--text)",
         error: "var(--error)",
-        background: "var(--background)"
+        background: "var(--background)",
+        green: {
+          400: "#16da42",
+          500: "#16da42",
+          600: "#12b837",
+          700: "#0e912b",
+        }
       },
       fontFamily: {
         space: ['"Space Grotesk"', "sans-serif"],
